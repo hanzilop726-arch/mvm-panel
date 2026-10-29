@@ -1,6 +1,6 @@
-# vPanel Pro - No-KVM Docker Container
+# MVM Panel - No-KVM Docker Container
 
-Run **vPanel Pro** inside a fully containerized Docker environment with **No-KVM Mode (QEMU TCG Software Emulation)**. Runs anywhere without needing `/dev/kvm` hardware access (VPS, Cloud Instances, GitHub Codespaces, Local Docker).
+Run **MVM Panel** inside a fully containerized Docker environment with **No-KVM Mode (QEMU TCG Software Emulation)**. Runs anywhere without needing `/dev/kvm` hardware access (VPS, Cloud Instances, GitHub Codespaces, Local Docker).
 
 ---
 
@@ -24,11 +24,11 @@ docker compose up -d --build
 
 ```bash
 # Build the Docker image
-docker build -t vpanel-nokvm .
+docker build -t mvm-panel-nokvm .
 
 # Run container in No-KVM Mode (no /dev/kvm required)
 docker run -d \
-  --name vpanel-pro \
+  --name mvm-panel \
   --restart unless-stopped \
   -e NO_KVM=1 \
   -p 3001:3001 \
@@ -37,7 +37,7 @@ docker run -d \
   -v $(pwd)/data:/app/data \
   -v $(pwd)/vms:/app/vms \
   -v $(pwd)/uploads:/app/uploads \
-  vpanel-nokvm
+  mvm-panel-nokvm
 ```
 
 ---

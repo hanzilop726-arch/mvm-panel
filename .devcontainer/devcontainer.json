@@ -1,14 +1,14 @@
 {
-  "name": "vpanel-vm",
+  "name": "MVM Panel VM",
   "forwardPorts": [3001, 3002],
   "portsAttributes": {
     "3001": {
-      "label": "vpanel Web Panel",
+      "label": "MVM Panel Web Panel",
       "onAutoForward": "silent",
       "visibility": "public"
     },
     "3002": {
-      "label": "vpanel REST API",
+      "label": "MVM Panel REST API",
       "onAutoForward": "silent",
       "visibility": "public"
     }

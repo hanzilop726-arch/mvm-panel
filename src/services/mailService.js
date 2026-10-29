@@ -47,8 +47,8 @@ function sendVerifyEmail(user, token) {
   const url = `${config.panelUrl}/verify?token=${token}`;
   return send({
     to: user.email,
-    subject: `${settings.get('panel.name') || 'vpanel'} - Verify your email`,
-    html: `<h2>Welcome to ${settings.get('panel.name') || 'vpanel'}</h2><p>Click the button below to verify your email address:</p><a style="background:#6366f1;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none" href="${url}">Verify Email</a><p>If the button does not work, open: <a href="${url}">${url}</a></p>`,
+    subject: `${settings.get('panel.name') || 'MVM Panel'} - Verify your email`,
+    html: `<h2>Welcome to ${settings.get('panel.name') || 'MVM Panel'}</h2><p>Click the button below to verify your email address:</p><a style="background:#6366f1;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none" href="${url}">Verify Email</a><p>If the button does not work, open: <a href="${url}">${url}</a></p>`,
   });
 }
 
@@ -56,7 +56,7 @@ function sendResetEmail(user, token) {
   const url = `${config.panelUrl}/reset?token=${token}`;
   return send({
     to: user.email,
-    subject: `${settings.get('panel.name') || 'vpanel'} - Password reset`,
+    subject: `${settings.get('panel.name') || 'MVM Panel'} - Password reset`,
     html: `<h2>Password reset</h2><p>Click below to reset your password. This link expires in 1 hour.</p><a style="background:#6366f1;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none" href="${url}">Reset Password</a><p>If the button does not work, open: <a href="${url}">${url}</a></p>`,
   });
 }

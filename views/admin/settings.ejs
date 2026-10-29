@@ -148,7 +148,7 @@
         <div class="form-group mb-4">
           <label style="font-size:14px;font-weight:700;color:#fff">1. Panel Name</label>
           <div class="muted text-sm mb-2">Set the admin panel name displayed across navigation, page titles, and alerts.</div>
-          <input name="panel.name" id="panelNameInput" value="<%= all['panel.name'] || 'vpanel' %>" placeholder="vPanel Pro" oninput="updatePanelNamePreview(this.value)" style="max-width:500px"/>
+          <input name="panel.name" id="panelNameInput" value="<%= all['panel.name'] || 'MVM Panel' %>" placeholder="MVM Panel" oninput="updatePanelNamePreview(this.value)" style="max-width:500px"/>
         </div>
 
         <hr class="hr" style="margin:24px 0"/>
@@ -199,7 +199,7 @@
                 <% if (logoP) { %>
                   <img id="liveLogoImg" src="<%= logoP %>" style="max-height:48px;max-width:100%;object-fit:contain"/>
                 <% } else { %>
-                  <span id="liveLogoFallback" style="font-size:18px;font-weight:800;letter-spacing:-0.5px;color:var(--text)"><%= all['panel.name'] || 'vpanel' %></span>
+                  <span id="liveLogoFallback" style="font-size:18px;font-weight:800;letter-spacing:-0.5px;color:var(--text)"><%= all['panel.name'] || 'MVM Panel' %></span>
                 <% } %>
               </div>
             </div>
@@ -356,7 +356,7 @@
           
           <div id="inspectorCard" class="card" style="padding:20px;border:1px solid var(--accent);background:var(--bg-card);box-shadow:0 8px 30px rgba(0,0,0,0.5)">
             <div class="flex-between mb-2">
-              <span class="font-bold" style="font-size:15px">vPanel Pro System</span>
+              <span class="font-bold" style="font-size:15px">MVM Panel System</span>
               <span class="pill pill-green">Online &amp; Active</span>
             </div>
             <p class="muted text-sm mb-3">This card live-renders your glassmorphism blur and transparency in real-time as you adjust sliders.</p>
@@ -710,7 +710,7 @@
   <!-- ============ ARIX THEME v2.1.3 SETTINGS ============ -->
   <div class="tab-pane" id="tab-arix" style="display:none">
     <div class="card mb-4" style="padding:24px;position:relative;overflow:hidden">
-      <div style="position:absolute;top:0;right:0;width:340px;height:100%;background:radial-gradient(ellipse at top right, rgba(74, 53, 207, 0.18), transparent 70%);pointer-events:none"></div>
+      <div style="position:absolute;top:0;right:0;width:340px;height:100%;background:radial-gradient(ellipse at top right, rgba(34, 197, 94, 0.18), transparent 70%);pointer-events:none"></div>
 
       <div class="flex-between mb-4" style="flex-wrap:wrap;gap:12px;border-bottom:1px solid var(--border);padding-bottom:18px">
         <div style="display:flex;align-items:center;gap:14px">
@@ -742,14 +742,14 @@
               <div class="form-group mb-3">
                 <label>Custom Hex Color</label>
                 <div class="flex" style="gap:10px;align-items:center">
-                  <input type="color" id="arixColorPicker" value="<%= all['arix.primary'] || '#4A35CF' %>" style="width:46px;height:40px;padding:2px;border:none;border-radius:8px;cursor:pointer;background:transparent" oninput="onArixColorChange(this.value)"/>
-                  <input type="text" name="arix.primary" id="arixPrimaryInput" value="<%= all['arix.primary'] || '#4A35CF' %>" class="mono font-bold" style="max-width:160px;text-transform:uppercase" oninput="onArixColorChange(this.value)"/>
+                  <input type="color" id="arixColorPicker" value="<%= all['arix.primary'] || '#22c55e' %>" style="width:46px;height:40px;padding:2px;border:none;border-radius:8px;cursor:pointer;background:transparent" oninput="onArixColorChange(this.value)"/>
+                  <input type="text" name="arix.primary" id="arixPrimaryInput" value="<%= all['arix.primary'] || '#22c55e' %>" class="mono font-bold" style="max-width:160px;text-transform:uppercase" oninput="onArixColorChange(this.value)"/>
                 </div>
               </div>
 
               <label class="text-sm font-bold mb-2" style="display:block">Preset Color Palettes</label>
               <div class="flex" style="flex-wrap:wrap;gap:8px">
-                <button type="button" class="btn btn-sm" onclick="setArixColor('#4A35CF')" style="background:#4A35CF;color:#fff;border:none">Arix Indigo (#4A35CF)</button>
+                <button type="button" class="btn btn-sm" onclick="setArixColor('#22c55e')" style="background:#22c55e;color:#041006;border:none">MVM Green (#22c55e)</button>
                 <button type="button" class="btn btn-sm" onclick="setArixColor('#10b981')" style="background:#10b981;color:#fff;border:none">Emerald (#10b981)</button>
                 <button type="button" class="btn btn-sm" onclick="setArixColor('#06b6d4')" style="background:#06b6d4;color:#fff;border:none">Cyan (#06b6d4)</button>
                 <button type="button" class="btn btn-sm" onclick="setArixColor('#0284c7')" style="background:#0284c7;color:#fff;border:none">Ocean (#0284c7)</button>
@@ -1303,7 +1303,7 @@ function toggleFaviconMode(mode) {
 
 function updatePanelNamePreview(val) {
   const fallback = document.getElementById('liveLogoFallback');
-  if (fallback) fallback.textContent = val.trim() || 'vpanel';
+  if (fallback) fallback.textContent = val.trim() || 'MVM Panel';
 }
 
 function updateLogoPreview(url) {
@@ -1312,7 +1312,7 @@ function updateLogoPreview(url) {
   if (url && url.trim()) {
     box.innerHTML = `<img id="liveLogoImg" src="${url.trim()}" style="max-height:48px;max-width:100%;object-fit:contain" onerror="this.style.display='none'"/>`;
   } else {
-    const name = (document.getElementById('panelNameInput') ? document.getElementById('panelNameInput').value : 'vpanel');
+    const name = (document.getElementById('panelNameInput') ? document.getElementById('panelNameInput').value : 'MVM Panel');
     box.innerHTML = `<span id="liveLogoFallback" style="font-size:18px;font-weight:800;letter-spacing:-0.5px;color:var(--text)">${name}</span>`;
   }
 }
@@ -1452,7 +1452,7 @@ function onArixModeChange(mode) {
 }
 
 function resetArixDefaults() {
-  setArixColor('#4A35CF');
+  setArixColor('#22c55e');
   document.getElementById('arixRadiusBoxSlider').value = 10;
   onArixRadiusChange('box', 10);
   document.getElementById('arixRadiusInputSlider').value = 8;

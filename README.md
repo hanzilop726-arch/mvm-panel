@@ -1,6 +1,6 @@
 <div align="center">
 
-# ⚡ vPanel Pro v3.1.1
+# ⚡ MVM Panel v3.1.1
 ### Enterprise-Grade QEMU/KVM Virtualization Platform with Full Arix Theme v2.1.3 Integration
 
 [![Node.js](https://img.shields.io/badge/Node.js-v18+-339933?style=for-the-badge&logo=nodedotjs&logoColor=white)](https://nodejs.org)
@@ -62,7 +62,7 @@
 
 ```text
 ┌────────────────────────────────────────────────────────────────────────┐
-│                        vPanel Pro Frontend                             │
+│                        MVM Panel Frontend                              │
 │       Arix Theme v2.1.3 • EJS • Xterm.js • Socket.IO • Lucide Icons    │
 └───────────────────────────────────┬────────────────────────────────────┘
                                     │ HTTP / WebSocket (Port 3001)
@@ -72,7 +72,7 @@
 └─────────────────┬──────────────────────────────────────┬───────────────┘
                   │                                      │
 ┌─────────────────▼──────────────┐     ┌─────────────────▼───────────────┐
-│     QEMU Hypervisor Engine     │     │      vPanel Guest Agent         │
+│     QEMU Hypervisor Engine     │     │      MVM Panel Guest Agent      │
 │   (KVM / TCG • VirtIO • VNC)   │     │   (Serial Daemon / SSH / Files) │
 └────────────────────────────────┘     └─────────────────────────────────┘
 ```
@@ -95,14 +95,14 @@
 
 ```bash
 # Clone the repository
-git clone https://github.com/nobita329/vpanel-pro.git
-cd vpanel-pro
+git clone https://github.com/nobita329/vpanel-pro.git mvm-panel
+cd mvm-panel
 
 # Interactive installation wizard
 sudo bash install.sh
 
 # Or 1-line unattended install
-sudo bash install.sh --install -y --admin-user admin --admin-email admin@vpanel.local --admin-pass 'your_secure_password'
+sudo bash install.sh --install -y --admin-user admin --admin-email admin@mvm-panel.local --admin-pass 'your_secure_password'
 ```
 
 #### Installer CLI Options:
@@ -114,7 +114,7 @@ sudo bash install.sh --install -y --admin-user admin --admin-email admin@vpanel.
 | `4`, `--pm2` | PM2 cluster management menu | - |
 | `5`, `--uninstall` | Safe uninstaller wizard | - |
 | `--admin-user <user>` | Administrator username | `admin` |
-| `--admin-email <email>`| Administrator email address | `admin@vpanel.local` |
+| `--admin-email <email>`| Administrator email address | `admin@mvm-panel.local` |
 | `--admin-pass <pass>` | Administrator password | Generated random |
 | `--no-pm2` | Skip PM2 daemon setup | `0` |
 | `-y`, `--non-interactive` | Run without interactive prompts | `0` |
@@ -125,8 +125,8 @@ sudo bash install.sh --install -y --admin-user admin --admin-email admin@vpanel.
 
 ```bash
 # 1. Clone repository & install dependencies
-git clone https://github.com/nobita329/vpanel-pro.git
-cd vpanel-pro
+git clone https://github.com/nobita329/vpanel-pro.git mvm-panel
+cd mvm-panel
 npm install
 
 # 2. Build assets
@@ -135,7 +135,7 @@ npm run build
 # 3. Create administrator account
 npm run createuser
 
-# 4. Start vPanel Pro
+# 4. Start MVM Panel
 npm start
 ```
 
@@ -166,7 +166,7 @@ docker compose up -d --build
 Or run standalone:
 ```bash
 docker run -d \
-  --name vpanel-pro \
+  --name mvm-panel \
   --restart unless-stopped \
   -e NO_KVM=1 \
   -p 3001:3001 \

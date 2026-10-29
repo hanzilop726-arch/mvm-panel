@@ -1,13 +1,13 @@
 <%
-const panelName = settings['panel.name'] || 'vPanel Pro';
+const panelName = settings['panel.name'] || 'MVM Panel';
 const favName = settings['panel.favicon_name'] || panelName;
 let favicon = '';
 if (settings['panel.favicon_mode'] === 'upload' && settings['panel.favicon_file']) favicon = settings['panel.favicon_file'];
 else if (settings['panel.favicon_mode'] === 'url' && settings['panel.favicon_url']) favicon = settings['panel.favicon_url'];
 if (!favicon) {
-  favicon = "/arix/Arix.png";
+  favicon = "/mvm-mark.svg";
 }
-const arixPrimary = settings['arix.primary'] || settings['panel.accent'] || '#4A35CF';
+const arixPrimary = settings['arix.primary'] || settings['panel.accent'] || '#22c55e';
 const radiusBox = settings['arix.radius_box'] || '10px';
 const radiusInput = settings['arix.radius_input'] || '8px';
 const theme = settings['arix.mode'] || settings['panel.theme'] || 'dark';

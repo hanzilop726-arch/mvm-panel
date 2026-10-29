@@ -1,5 +1,5 @@
 /**
- * Automated Test Suite for vPanel Pro v3 Pterodactyl-Style Update System
+ * Automated Test Suite for MVM Panel v3 Pterodactyl-Style Update System
  */
 
 const assert = require('assert');

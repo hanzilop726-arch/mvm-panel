@@ -1,5 +1,5 @@
 /**
- * Automated Test Suite for vPanel Pro v3 Advanced Capabilities
+ * Automated Test Suite for MVM Panel v3 Advanced Capabilities
  * - Global Command Palette
  * - User Impersonation & Floating Revert Banner
  * - AI Assistant & Boot Log Explainer

@@ -2,28 +2,32 @@
 <%- include('../partials/ambient') %>
 <%- include('../partials/topbar') %>
 <%- include('../partials/sidebar') %>
-<div class="main">
-  <!-- Arix Welcome Banner -->
-  <div class="card mb-4" style="background:linear-gradient(135deg, rgba(74, 53, 207, 0.22) 0%, rgba(29, 29, 55, 0.9) 100%);border:1px solid rgba(74, 53, 207, 0.35);padding:26px 28px;position:relative;overflow:hidden">
-    <div style="position:absolute;right:-40px;top:-40px;width:240px;height:240px;background:radial-gradient(circle, rgba(74,53,207,0.3) 0%, transparent 70%);pointer-events:none"></div>
+<div class="main user-dashboard">
+  <div class="card dashboard-hero user-dashboard-hero mb-4" style="padding:26px 28px;position:relative;overflow:hidden">
     <div class="flex-between" style="flex-wrap:wrap;gap:16px;position:relative;z-index:2">
       <div>
-        <div class="pill pill-primary mb-2" style="font-size:11px;padding:3px 10px"><i data-lucide="sparkles" style="width:12px;height:12px"></i> ARIX CLUSTER</div>
+        <div class="pill pill-primary mb-2 dashboard-kicker" style="font-size:11px;padding:3px 10px"><i data-lucide="sparkles" style="width:12px;height:12px"></i> MVM / CONTROL PLANE</div>
         <h2 style="font-size:26px;font-weight:700;letter-spacing:-0.4px;margin:0 0 6px 0;color:var(--gray-50)">Welcome back, <%= user.username %>!</h2>
         <div class="muted text-sm" style="color:var(--gray-300)">Manage and monitor your virtual cloud servers across the cluster.</div>
       </div>
-      <div class="flex" style="gap:10px">
+      <div class="flex dashboard-hero-actions" style="gap:10px">
         <% if (user && (user.role === 'admin' || user.root_admin)) { %>
           <a class="btn btn-primary" href="/admin/servers/create" style="padding:10px 18px">
             <i data-lucide="plus" style="width:16px;height:16px"></i> Deploy Virtual Machine
           </a>
         <% } %>
+        <div class="hero-orbit" aria-hidden="true">
+          <div class="hero-orbit-ring hero-orbit-ring--outer"></div>
+          <div class="hero-orbit-ring hero-orbit-ring--inner"></div>
+          <div class="hero-orbit-core"><i data-lucide="server"></i></div>
+          <span class="hero-orbit-point hero-orbit-point--one"></span>
+          <span class="hero-orbit-point hero-orbit-point--two"></span>
+        </div>
       </div>
     </div>
   </div>
 
-  <!-- Arix Hero Metrics Row -->
-  <div class="grid grid-4 mb-4">
+  <div class="grid grid-4 dashboard-metrics mb-4">
     <div class="stat">
       <div class="stat-icon">
         <i data-lucide="server" style="width:22px;height:22px"></i>
@@ -35,17 +39,17 @@
     </div>
 
     <div class="stat">
-      <div class="stat-icon" style="background:rgba(61,143,31,0.18);color:#56AA2B;border-color:rgba(86,170,43,0.35)">
+      <div class="stat-icon stat-icon--online">
         <i data-lucide="zap" style="width:22px;height:22px"></i>
       </div>
       <div>
-        <div class="stat-value" style="color:#56AA2B"><%= running %></div>
+        <div class="stat-value"><%= running %></div>
         <div class="stat-label">Active &amp; Online</div>
       </div>
     </div>
 
     <div class="stat">
-      <div class="stat-icon" style="background:rgba(6,182,212,0.18);color:#67e8f9;border-color:rgba(6,182,212,0.35)">
+      <div class="stat-icon stat-icon--compute">
         <i data-lucide="cpu" style="width:22px;height:22px"></i>
       </div>
       <div>
@@ -55,7 +59,7 @@
     </div>
 
     <div class="stat">
-      <div class="stat-icon" style="background:rgba(143,110,31,0.18);color:#f7ca45;border-color:rgba(170,139,42,0.35)">
+      <div class="stat-icon stat-icon--memory">
         <i data-lucide="hard-drive" style="width:22px;height:22px"></i>
       </div>
       <div>
@@ -99,7 +103,7 @@
         <% } %>
       </div>
     <% } else { %>
-      <!-- Arix Card Grid View -->
+      <!-- Server card grid -->
       <div id="vmCardGrid" class="grid grid-3 mb-2" style="gap:16px;margin-top:12px">
         <% for (const v of vms) { %>
           <div class="vm-card-item card" data-search="<%= v.name %> <%= v.username %> <%= v.hostname %> <%= v.ssh_port %> <%= v.os_type %>" style="padding:20px;display:flex;flex-direction:column;justify-content:space-between;gap:14px;background:var(--gray-700)">
@@ -160,7 +164,7 @@
         <% } %>
       </div>
 
-      <!-- Arix Table View -->
+      <!-- Server table view -->
       <div id="vmTableView" class="table-wrap" style="display:none;margin-top:12px">
         <table>
           <thead>

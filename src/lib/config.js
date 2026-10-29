@@ -8,7 +8,7 @@ const config = {
   panelPort: parseInt(process.env.PANEL_PORT || '3001', 10),
   apiPort: parseInt(process.env.API_PORT || '3002', 10),
   panelUrl: process.env.PANEL_URL || `http://localhost:${parseInt(process.env.PANEL_PORT || '3001', 10)}`,
-  jwtSecret: process.env.JWT_SECRET || 'vpanel-insecure-secret-change-me',
+  jwtSecret: process.env.JWT_SECRET || 'mvm-panel-insecure-secret-change-me',
   jwtExpires: process.env.JWT_EXPIRES || '7d',
   mongoUri: process.env.MONGO_URI || 'mongodb://admin:password123@127.0.0.1:27017/vpanel?authSource=admin',
   dbPath: path.resolve(root, process.env.DB_PATH || 'data/vpanel.db'),
@@ -36,7 +36,7 @@ const config = {
     secure: String(process.env.MAIL_SECURE || 'false') === 'true',
     user: process.env.MAIL_USER || '',
     pass: process.env.MAIL_PASS || '',
-    from: process.env.MAIL_FROM || 'vpanel <no-reply@vpanel.local>',
+    from: process.env.MAIL_FROM || 'MVM Panel <no-reply@mvm-panel.local>',
   },
   wallpaperApiKey: process.env.WALLPAPERS_API_KEY || '',
 };

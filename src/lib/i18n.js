@@ -1,5 +1,5 @@
 /**
- * vPanel Pro v3 - Internationalization (i18n) Engine
+ * MVM Panel - Internationalization (i18n) Engine
  */
 
 const LOCALES = {
@@ -171,4 +171,3 @@ module.exports = {
   t: translate,
   i18nMiddleware,
 };
-

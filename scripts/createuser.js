@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * vpanel user creator
+ * MVM Panel user creator
  * Usage:
  *   npm run createuser
  *   npm run createuser -- --username admin --email a@b.c --password secret --role admin
@@ -34,7 +34,7 @@ async function main() {
   }
 
   const username = args.username || process.env.CREATEUSER_USERNAME || (await ask('Username', process.env.ADMIN_USERNAME || 'admin'));
-  const email = args.email || process.env.CREATEUSER_EMAIL || (await ask('Email', process.env.ADMIN_EMAIL || 'admin@vpanel.local'));
+  const email = args.email || process.env.CREATEUSER_EMAIL || (await ask('Email', process.env.ADMIN_EMAIL || 'admin@mvm-panel.local'));
   const password = args.password || process.env.CREATEUSER_PASSWORD || (await ask('Password', process.env.ADMIN_PASSWORD || 'admin12345'));
   const role = args.role || 'admin';
   const name = args.name || username;

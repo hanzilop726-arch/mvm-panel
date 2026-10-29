@@ -2,8 +2,8 @@
 <%- include('../partials/ambient') %>
 <%- include('../partials/topbar') %>
 <%- include('../partials/sidebar') %>
-<div class="main">
-  <div class="flex-between mb-4">
+<div class="main admin-dashboard">
+  <div class="flex-between dashboard-heading mb-4">
     <div>
       <h2 style="font-size:24px;font-weight:800;letter-spacing:-0.4px">Admin Overview</h2>
       <div class="muted" style="margin-top:2px">Cluster management &amp; host health metrics</div>
@@ -22,7 +22,7 @@
         </div>
         <div>
           <div style="font-weight:800;font-size:15px;color:#fff;display:flex;align-items:center;gap:8px">
-            New Update Available: vPanel Pro <%= settings['update.latest_version'] || 'Update' %>
+            New Update Available: MVM Panel <%= settings['update.latest_version'] || 'Update' %>
             <span class="pill font-bold" style="background:#f59e0b;color:#1e1002;font-size:10px;padding:2px 7px">NEW RELEASE</span>
           </div>
           <div class="muted text-sm" style="margin-top:2px">
@@ -42,9 +42,9 @@
   <% } %>
 
   <!-- Admin Stats Grid -->
-  <div class="grid grid-4 mb-4">
+  <div class="grid grid-4 dashboard-metrics mb-4">
     <div class="stat">
-      <div class="stat-icon" style="background:rgba(99,102,241,0.15);color:#818cf8">
+      <div class="stat-icon">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><path d="M6 6h.01M6 18h.01"/></svg>
       </div>
       <div>
@@ -54,17 +54,17 @@
     </div>
 
     <div class="stat">
-      <div class="stat-icon" style="background:rgba(16,185,129,0.15);color:#34d399">
+      <div class="stat-icon stat-icon--online">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
       </div>
       <div>
-        <div class="stat-value" style="color:#34d399"><%= running %></div>
+        <div class="stat-value"><%= running %></div>
         <div class="stat-label">Running Online</div>
       </div>
     </div>
 
     <div class="stat">
-      <div class="stat-icon" style="background:rgba(56,189,248,0.15);color:#38bdf8">
+      <div class="stat-icon stat-icon--compute">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
       </div>
       <div>
@@ -74,7 +74,7 @@
     </div>
 
     <div class="stat">
-      <div class="stat-icon" style="background:rgba(245,158,11,0.15);color:#fbbf24">
+      <div class="stat-icon stat-icon--memory">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-2.64-6.36M21 3v6h-6"/></svg>
       </div>
       <div>
@@ -85,7 +85,7 @@
   </div>
 
   <!-- Primary Host Node & Live Telemetry -->
-  <div class="card mb-4" style="padding:20px;border:1px solid var(--accent);background:linear-gradient(135deg, rgba(15, 23, 42, 0.8) 0%, rgba(6, 9, 19, 0.9) 100%)">
+  <div class="card cluster-health-card mb-4" style="padding:20px">
     <div class="flex-between mb-3" style="flex-wrap:wrap;gap:10px">
       <div class="flex" style="gap:12px;align-items:center">
         <div style="width:40px;height:40px;border-radius:12px;background:linear-gradient(135deg, var(--accent), var(--accent-2));display:grid;place-items:center;color:#fff;box-shadow:0 0 16px var(--accent-glow)">

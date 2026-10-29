@@ -1,9 +1,9 @@
 <%
-const panelName = settings['panel.name'] || 'vPanel Pro';
+const panelName = settings['panel.name'] || 'MVM Panel';
 let logo = '';
 if (settings['panel.logo_mode'] === 'upload' && settings['panel.logo_file']) logo = settings['panel.logo_file'];
 else if (settings['panel.logo_mode'] === 'url' && settings['panel.logo_url']) logo = settings['panel.logo_url'];
-if (!logo) logo = '/arix/Arix.png';
+if (!logo) logo = '/mvm-mark.svg';
 %>
 <% if (user && user.is_impersonating) { %>
 <div class="impersonation-banner" style="background:linear-gradient(90deg, #d97706, #f59e0b);color:#1e1002;padding:7px 18px;font-size:12.5px;font-weight:600;display:flex;align-items:center;justify-content:space-between;box-shadow:0 2px 10px rgba(0,0,0,0.35);position:sticky;top:0;z-index:9999">
@@ -26,7 +26,7 @@ if (!logo) logo = '/arix/Arix.png';
   </button>
   
   <a href="/dashboard" class="brand">
-    <img src="<%= logo %>" alt="Arix Logo" style="height:32px;border-radius:6px"/>
+    <img src="<%= logo %>" alt="MVM Panel logo" style="height:32px;border-radius:10px"/>
     <span class="brand-text"><%= panelName %></span>
   </a>
 

@@ -17,7 +17,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: vpanel-pro
+    container_name: mvm-panel
     restart: unless-stopped
     depends_on:
       - mongodb
@@ -36,7 +36,7 @@ services:
       - MONGO_URI=mongodb://admin:password123@mongodb:27017/vpanel?authSource=admin
       - NO_KVM=1             # Set to 1 for No-KVM TCG software emulation mode
       - ADMIN_USER=admin
-      - ADMIN_EMAIL=admin@vpanel.local
+      - ADMIN_EMAIL=admin@mvm-panel.local
       - ADMIN_PASSWORD=admin123
     cap_add:
       - NET_ADMIN

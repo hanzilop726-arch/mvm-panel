@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-vpanel VM Agent - file management API for the vpanel panel.
+MVM Panel VM Agent - file management API for the management panel.
 Runs inside the guest VM, listens on 127.0.0.1 / 0.0.0.0 and is reached by the
 panel through a QEMU user-networking hostfwd. Requires a bearer token stored in
 /etc/vpanel-agent.token.

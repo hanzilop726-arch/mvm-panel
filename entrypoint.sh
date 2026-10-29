@@ -2,15 +2,15 @@
 set -e
 
 echo "========================================="
-echo "  Starting vPanel Pro Container Service  "
+echo "  Starting MVM Panel Container Service  "
 echo "========================================="
 
 # Detect KVM availability
 if [ "$NO_KVM" = "1" ] || [ "$NOKVM" = "1" ] || [ ! -e "/dev/kvm" ]; then
-  echo "[vpanel] Operating Mode: No-KVM (QEMU TCG Software Emulation)"
+  echo "[MVM Panel] Operating Mode: No-KVM (QEMU TCG Software Emulation)"
   export NO_KVM=1
 else
-  echo "[vpanel] Operating Mode: KVM Hardware Accelerated (/dev/kvm)"
+  echo "[MVM Panel] Operating Mode: KVM Hardware Accelerated (/dev/kvm)"
   export NO_KVM=0
 fi
 
@@ -28,10 +28,10 @@ if [ -f "/app/scripts/createuser.js" ]; then
       await initDb();
       const count = await collections.users.countDocuments();
       if (count === 0) {
-        console.log('[vpanel] Creating default administrator user: admin / admin123');
+        console.log('[MVM Panel] Creating default administrator user: admin / admin123');
         const u = await auth.createUser({
           username: process.env.ADMIN_USER || 'admin',
-          email: process.env.ADMIN_EMAIL || 'admin@vpanel.local',
+          email: process.env.ADMIN_EMAIL || 'admin@mvm-panel.local',
           password: process.env.ADMIN_PASSWORD || 'admin123',
           name: 'Administrator',
           role: 'admin',
@@ -44,5 +44,5 @@ if [ -f "/app/scripts/createuser.js" ]; then
   " || true
 fi
 
-echo "[vpanel] Ready on port 3001 (Web) and port 3002 (API)"
+echo "[MVM Panel] Ready on port 3001 (Web) and port 3002 (API)"
 exec "$@"

@@ -2,7 +2,7 @@
 const { bootstrap } = require('./app');
 const logger = require('./lib/logger');
 
-process.title = 'vpanel';
+process.title = 'mvm-panel';
 
 (async () => {
   try {

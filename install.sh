@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # =============================================================================
-#  ⚡ vPanel Pro - Next-Gen QEMU Virtual Machine Management Web Panel
+#  ⚡ MVM Panel - Next-Gen QEMU Virtual Machine Management Web Panel
 #  Full Support Installer for Debian (11, 12, 13) & Ubuntu (20.04, 22.04, 24.04)
 # =============================================================================
 
@@ -29,7 +29,7 @@ safe_clear() {
   clear 2>/dev/null || true
 }
 
-log_info()  { printf "${CYAN}${BOLD}[vPanel]${NC} %b\n" "$*"; }
+log_info()  { printf "${CYAN}${BOLD}[MVM Panel]${NC} %b\n" "$*"; }
 log_ok()    { printf "${GREEN}${BOLD}[✔ SUCCESS]${NC} %b\n" "$*"; }
 log_warn()  { printf "${YELLOW}${BOLD}[⚠ WARN]${NC} %b\n" "$*"; }
 log_err()   { printf "${RED}${BOLD}[✖ ERROR]${NC} %b\n" "$*" >&2; }
@@ -69,13 +69,13 @@ get_server_ip() {
 }
 
 # =============================================================================
-# 1. INSTALL VPANEL PRO
+# 1. INSTALL MVM PANEL
 # =============================================================================
 do_install() {
   safe_clear
   printf "${CYAN}${BOLD}"
   echo "================================================================="
-  echo "             🚀 Installing vPanel Pro on $OS_NAME                "
+  echo "             🚀 Installing MVM Panel on $OS_NAME                "
   echo "================================================================="
   printf "${NC}\n"
 
@@ -261,7 +261,7 @@ EOF
   # Step 8: Administrator Account
   log_info "Step 8/8: Creating Administrator Account..."
   local IN_USER="${ADMIN_USER:-admin}"
-  local IN_EMAIL="${ADMIN_EMAIL:-admin@vpanel.local}"
+  local IN_EMAIL="${ADMIN_EMAIL:-admin@mvm-panel.local}"
   local IN_PASS="${ADMIN_PASS:-}"
 
   if [ -t 0 ] && [ "$NON_INTERACTIVE" -eq 0 ] && [ -z "$ADMIN_PASS" ]; then
@@ -318,7 +318,7 @@ EOF
       npm install -g pm2 --no-audit --no-fund
     fi
 
-    log_info "Starting vPanel Pro cluster with PM2..."
+    log_info "Starting MVM Panel cluster with PM2..."
     pm2 delete vpanel >/dev/null 2>&1 || true
     pm2 start ecosystem.config.js || pm2 start src/server.js --name vpanel
     pm2 save
@@ -333,7 +333,7 @@ EOF
   echo ""
   printf "${GREEN}${BOLD}"
   echo "================================================================="
-  echo "           🎉 vPanel Pro Successfully Installed & Online!        "
+  echo "           🎉 MVM Panel Successfully Installed & Online!        "
   echo "================================================================="
   printf "${NC}\n"
   echo "  🌐 Web Panel URL:    http://${s_ip}:3001"
@@ -373,7 +373,7 @@ do_create_user() {
     read -r -p "Enter Username [default: ${A_USER}]: " INPUT_USER
     A_USER="${INPUT_USER:-$A_USER}"
 
-    local DEF_EMAIL="${A_USER}@vpanel.local"
+    local DEF_EMAIL="${A_USER}@mvm-panel.local"
     read -r -p "Enter Email [default: ${A_EMAIL:-$DEF_EMAIL}]: " INPUT_EMAIL
     A_EMAIL="${INPUT_EMAIL:-${A_EMAIL:-$DEF_EMAIL}}"
 
@@ -390,7 +390,7 @@ do_create_user() {
   fi
 
   if [ -z "$A_EMAIL" ]; then
-    A_EMAIL="${A_USER}@vpanel.local"
+    A_EMAIL="${A_USER}@mvm-panel.local"
   fi
 
   if [ -z "$A_PASS" ]; then
@@ -436,13 +436,13 @@ do_create_user() {
 }
 
 # =============================================================================
-# 3. UPDATE VPANEL PRO
+# 3. UPDATE MVM PANEL
 # =============================================================================
 do_update() {
   safe_clear
   printf "${CYAN}${BOLD}"
   echo "================================================================="
-  echo "                   🔄 Updating vPanel Pro                        "
+  echo "                   🔄 Updating MVM Panel                        "
   echo "================================================================="
   printf "${NC}\n"
 
@@ -467,7 +467,7 @@ do_update() {
     pm2 save
   fi
 
-  log_ok "vPanel Pro has been updated successfully!"
+  log_ok "MVM Panel has been updated successfully!"
   echo ""
 }
 
@@ -484,9 +484,9 @@ do_pm2_menu() {
     echo "================================================================="
     printf "${NC}\n"
     echo "  [1] 📊 View Status (pm2 status)"
-    echo "  [2] 🔄 Restart vPanel (pm2 restart vpanel)"
-    echo "  [3] ⏹️  Stop vPanel (pm2 stop vpanel)"
-    echo "  [4] ▶️  Start vPanel (pm2 start vpanel)"
+    echo "  [2] 🔄 Restart MVM Panel (pm2 restart vpanel)"
+    echo "  [3] ⏹️  Stop MVM Panel (pm2 stop vpanel)"
+    echo "  [4] ▶️  Start MVM Panel (pm2 start vpanel)"
     echo "  [5] 📜 View Live Logs (pm2 logs vpanel)"
     echo "  [6] ⚡ Enable Auto-start on System Boot"
     echo "  [7] 🚫 Disable Auto-start on System Boot"
@@ -502,21 +502,21 @@ do_pm2_menu() {
         read -r -p "Press Enter to continue..." _
         ;;
       2)
-        log_info "Restarting vPanel cluster..."
+        log_info "Restarting MVM Panel cluster..."
         pm2 restart all
-        log_ok "vPanel restarted."
+        log_ok "MVM Panel restarted."
         read -r -p "Press Enter to continue..." _
         ;;
       3)
-        log_info "Stopping vPanel cluster..."
+        log_info "Stopping MVM Panel cluster..."
         pm2 stop all
-        log_ok "vPanel stopped."
+        log_ok "MVM Panel stopped."
         read -r -p "Press Enter to continue..." _
         ;;
       4)
-        log_info "Starting vPanel cluster..."
+        log_info "Starting MVM Panel cluster..."
         pm2 start ecosystem.config.js || pm2 start all
-        log_ok "vPanel started."
+        log_ok "MVM Panel started."
         read -r -p "Press Enter to continue..." _
         ;;
       5)
@@ -548,18 +548,18 @@ do_pm2_menu() {
 }
 
 # =============================================================================
-# 5. UNINSTALL VPANEL PRO
+# 5. UNINSTALL MVM PANEL
 # =============================================================================
 do_uninstall() {
   safe_clear
   printf "${RED}${BOLD}"
   echo "================================================================="
-  echo "                 🗑️  Uninstall vPanel Pro                        "
+  echo "                 🗑️  Uninstall MVM Panel                         "
   echo "================================================================="
   printf "${NC}\n"
 
   if [ "$NON_INTERACTIVE" -eq 0 ]; then
-    read -r -p "Are you sure you want to completely uninstall vPanel Pro? (y/N): " CONFIRM
+    read -r -p "Are you sure you want to completely uninstall MVM Panel? (y/N): " CONFIRM
     if [[ "$CONFIRM" != "y" && "$CONFIRM" != "Y" ]]; then
       log_info "Uninstall aborted."
       return
@@ -593,7 +593,7 @@ do_uninstall() {
     log_info "Preserving database and VM disks."
   fi
 
-  log_ok "vPanel Pro has been uninstalled successfully."
+  log_ok "MVM Panel has been uninstalled successfully."
   echo ""
 }
 
@@ -605,7 +605,7 @@ show_menu() {
     safe_clear
     printf "${CYAN}${BOLD}"
     echo "================================================================="
-    echo "                   ⚡ vPanel Pro Management Suite                "
+    echo "                   ⚡ MVM Panel Management Suite                 "
     echo "            Full Support: Debian 11/12/13 & Ubuntu 20/22/24      "
     echo "================================================================="
     printf "${NC}"
@@ -641,7 +641,7 @@ show_menu() {
         read -r -p "Press Enter to return to menu..." _
         ;;
       0)
-        log_info "Exiting vPanel Pro Installer. Goodbye!"
+        log_info "Exiting MVM Panel Installer. Goodbye!"
         exit 0
         ;;
       *)
@@ -718,11 +718,11 @@ while [ $# -gt 0 ]; do
       echo "  2, createuser, --create-admin   Create or reset admin account"
       echo "  3, update, --update             Pull updates and rebuild"
       echo "  4, pm2, --pm2                   PM2 cluster management menu"
-      echo "  5, uninstall, --uninstall       Uninstall vPanel Pro"
+      echo "  5, uninstall, --uninstall       Uninstall MVM Panel"
       echo ""
       echo "Options:"
       echo "  --admin-user <user>             Admin username (default: admin)"
-      echo "  --admin-email <email>           Admin email (default: admin@vpanel.local)"
+      echo "  --admin-email <email>           Admin email (default: admin@mvm-panel.local)"
       echo "  --admin-pass <pass>             Admin password (default: random secure)"
       echo "  --no-pm2                        Skip PM2 process manager"
       echo "  -y, --non-interactive           Run without interactive prompts"

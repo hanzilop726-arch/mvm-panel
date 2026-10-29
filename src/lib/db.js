@@ -43,11 +43,11 @@ async function getNextId(name) {
 }
 
 const defaultSettings = {
-  'panel.name': 'vpanel',
+  'panel.name': 'MVM Panel',
   'panel.logo_mode': 'url',
   'panel.logo_url': '',
   'panel.logo_file': '',
-  'panel.favicon_name': 'vpanel',
+  'panel.favicon_name': 'MVM Panel',
   'panel.favicon_mode': 'url',
   'panel.favicon_url': '',
   'panel.favicon_file': '',
@@ -69,7 +69,7 @@ const defaultSettings = {
   'panel.navbar_style': 'glass',
   'panel.navbar_transparent': '1',
   'panel.navbar_blur': '1',
-  'panel.accent': '#38bdf8',
+  'panel.accent': '#22c55e',
   'panel.theme': 'dark',
   'panel.wallpapers_api_key': '',
   'billing.currency': 'USD',
@@ -247,7 +247,16 @@ async function initDb() {
   try {
     const all = await collections.settings.find().toArray();
     for (const row of all) {
-      settingsCache[row.key] = row.value;
+      let value = row.value;
+      if (row.key === 'panel.name' && ['vpanel', 'vPanel Pro'].includes(String(value).trim())) {
+        value = 'MVM Panel';
+      } else if (row.key === 'panel.favicon_name' && String(value).trim() === 'vpanel') {
+        value = 'MVM Panel';
+      }
+      if (value !== row.value) {
+        await collections.settings.updateOne({ key: row.key }, { $set: { value } });
+      }
+      settingsCache[row.key] = value;
     }
     for (const [k, v] of Object.entries(defaultSettings)) {
       if (!(k in settingsCache)) {

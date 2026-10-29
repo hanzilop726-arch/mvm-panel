@@ -3,13 +3,13 @@
 <div class="auth-wrap">
   <div class="auth-card" style="text-align:center">
     <div class="auth-logo" style="display:flex;flex-direction:column;align-items:center;margin-bottom:20px">
-      <% const pn = settings['panel.name'] || 'vPanel Pro'; 
+      <% const pn = settings['panel.name'] || 'MVM Panel';
          let lg = '';
          if (settings['panel.logo_mode']==='upload' && settings['panel.logo_file']) lg = settings['panel.logo_file'];
          else if (settings['panel.logo_mode']==='url' && settings['panel.logo_url']) lg = settings['panel.logo_url'];
-         if (!lg) lg = '/arix/Arix.png';
+         if (!lg) lg = '/mvm-mark.svg';
       %>
-      <img src="<%= lg %>" alt="Arix Logo" style="height:48px;border-radius:10px;margin-bottom:12px;filter:drop-shadow(0 4px 14px rgba(74,53,207,0.4))"/>
+      <img src="<%= lg %>" alt="MVM Panel logo" style="height:52px;border-radius:14px;margin-bottom:12px;filter:drop-shadow(0 8px 22px rgba(91,104,255,0.35))"/>
       <span style="font-size:22px;font-weight:700;color:var(--gray-50);letter-spacing:-0.4px"><%= pn %></span>
     </div>
     <h1 class="auth-title" style="font-size:20px;font-weight:700;margin-bottom:12px">Email Verification</h1>

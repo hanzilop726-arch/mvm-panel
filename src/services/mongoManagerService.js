@@ -199,7 +199,7 @@ class MongoManagerService {
     await db.collection(cleanColl).insertOne({
       _init: true,
       created_at: new Date().toISOString(),
-      system_note: 'Database initialized by vPanel Pro Studio',
+      system_note: 'Database initialized by MVM Panel Studio',
     });
     return { ok: true, database: cleanDbName, collection: cleanColl };
   }

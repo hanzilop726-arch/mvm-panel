@@ -344,7 +344,7 @@ async function bootstrap() {
   try {
     if ((await authService.countAdmins()) === 0) {
       const username = process.env.ADMIN_USERNAME || 'admin';
-      const email = process.env.ADMIN_EMAIL || 'admin@vpanel.local';
+      const email = process.env.ADMIN_EMAIL || 'admin@mvm-panel.local';
       const password = process.env.ADMIN_PASSWORD || 'admin12345';
       const user = await authService.createUser({ username, email, password, name: 'Administrator', role: 'admin', verified: true });
       await collections.users.updateOne({ id: user.id }, { $set: { root_admin: 1 } });
@@ -355,10 +355,10 @@ async function bootstrap() {
   }
 
   webServer.listen(config.panelPort, '0.0.0.0', () => {
-    logger.info(`[panel] vpanel web running on http://0.0.0.0:${config.panelPort}`);
+    logger.info(`[panel] MVM Panel web running on http://0.0.0.0:${config.panelPort}`);
   });
   apiApp.listen(config.apiPort, '0.0.0.0', () => {
-    logger.info(`[panel] vpanel API running on http://0.0.0.0:${config.apiPort}/api`);
+    logger.info(`[panel] MVM Panel API running on http://0.0.0.0:${config.apiPort}/api`);
   });
 
   // Autostart VMs flagged to start on boot

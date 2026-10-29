@@ -1,5 +1,5 @@
 /**
- * Full Automated End-to-End Test Suite for vPanel Pro
+ * Full Automated End-to-End Test Suite for MVM Panel
  */
 const axios = require('axios');
 const { initDb, closeDb, collections, getNextId, settings } = require('../src/lib/db');
@@ -38,7 +38,7 @@ async function runAutoFullTest() {
   if (!adminUser) {
     adminUser = await authService.createUser({
       username: 'admin',
-      email: 'admin@vpanel.local',
+      email: 'admin@mvm-panel.local',
       password: 'adminPassword123!',
       name: 'Administrator',
       role: 'admin',
@@ -60,7 +60,7 @@ async function runAutoFullTest() {
   const testUsername = 'autotest_' + Date.now();
   const created = await authService.createUser({
     username: testUsername,
-    email: `${testUsername}@vpanel.local`,
+    email: `${testUsername}@mvm-panel.local`,
     password: 'TestPassword123!',
     name: 'Auto Test User',
     role: 'user',
@@ -237,4 +237,3 @@ runAutoFullTest().catch(async (err) => {
   try { await closeDb(); } catch (_) {}
   process.exit(1);
 });
-
