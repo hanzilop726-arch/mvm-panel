@@ -434,17 +434,18 @@ async function create({ user, data, onProgress = async () => {} }) {
 
   const id = await getNextId('vms');
   const dir = path.join(VM_DIR, String(id));
-  fs.mkdirSync(dir, { recursive: true });
+  const vmUuid = uuidv4();
+  if (virtualization === 'kvm') fs.mkdirSync(dir, { recursive: true });
 
   const vm = {
     id,
-    uuid: uuidv4(),
+    uuid: vmUuid,
     owner_id: user.id,
     name: vmName,
     virtualization,
     allow_nested_containers: allowNestedContainers,
     reward_type: data.reward_type === 'discord' ? 'discord' : null,
-    container_name: virtualization === 'lxc' ? String(id) : undefined,
+    container_name: virtualization === 'lxc' ? `mvm-${id}-${vmUuid.slice(0, 8)}` : undefined,
     description: String(data.description || '').trim(),
     exp_date: data.exp_date ? String(data.exp_date) : null,
     os_type: osEntry[1] || '',
