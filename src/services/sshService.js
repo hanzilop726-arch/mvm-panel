@@ -40,12 +40,27 @@ function exec(conn, cmd, { timeout = 30000 } = {}) {
       if (err) return reject(err);
       let out = '';
       let errOut = '';
+      let settled = false;
+      const timer = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        stream.close();
+        reject(new Error(`SSH command timed out after ${timeout} ms`));
+      }, timeout);
       stream.on('data', (d) => { out += d.toString(); });
       stream.stderr.on('data', (d) => { errOut += d.toString(); });
       stream.on('close', (code) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
         resolve({ code, stdout: out, stderr: errOut });
       });
-      stream.on('error', reject);
+      stream.on('error', (streamError) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        reject(streamError);
+      });
     });
   });
 }

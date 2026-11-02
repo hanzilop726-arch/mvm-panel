@@ -1,7 +1,9 @@
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const config = require('../lib/config');
+const logger = require('../lib/logger');
 const { collections, settings } = require('../lib/db');
 const vmService = require('../services/vmService');
 const backupService = require('../services/backupService');
@@ -10,6 +12,7 @@ const activity = require('../services/activityService');
 const resourceService = require('../services/resourceService');
 const { requireAdmin } = require('../middleware/auth');
 const { uploadLogo, uploadFavicon, uploadBackground, uploadMusic } = require('../middleware/upload');
+const discordService = require('../services/discordService');
 const multer = require('multer');
 const fs2 = require('fs');
 const createUpload = multer({ dest: config.root + '/data/tmp' });
@@ -28,6 +31,119 @@ function render(res, view, vars = {}) {
 }
 
 const nodeService = require('../services/nodeService');
+
+function platformVars(all = settings.all()) {
+  const defaultRedirectUri = discordService.redirectUri();
+  const rewardOsList = vmService.getOsList().filter((os) => ['ubuntu', 'debian'].includes(String(os[1] || '').toLowerCase()));
+  return {
+    all,
+    defaultRedirectUri,
+    rewardOsList,
+    lxcInstalled: vmService.usage().lxc,
+    clientSecretConfigured: Boolean(all['discord.client_secret']),
+    botTokenConfigured: Boolean(all['discord.bot_token']),
+  };
+}
+
+router.get('/admin/platform', (req, res) => {
+  render(res, 'platform', {
+    ...platformVars(),
+    updated: req.query.updated === '1',
+    error: '',
+  });
+});
+
+router.post('/admin/platform', express.urlencoded({ extended: true }), async (req, res, next) => {
+  const fail = (message) => res.status(400).render('admin/platform', {
+    page: 'admin-platform',
+    user: req.user,
+    settings: settings.all(),
+    error: message,
+    updated: false,
+    ...platformVars(),
+  });
+  const integer = (key, min, max) => {
+    const value = Number(req.body[key]);
+    return Number.isInteger(value) && value >= min && value <= max ? value : null;
+  };
+  const enableKvm = req.body['vm.enable_kvm'] === '1';
+  const enableLxc = req.body['vm.enable_lxc'] === '1';
+  const defaultBackend = String(req.body['vm.default_virtualization'] || '');
+  const panelUiStyle = String(req.body['panel.ui_style'] || '');
+  const bridge = String(req.body['vm.lxc_bridge'] || 'lxcbr0').trim();
+  const rewardsEnabled = req.body['discord.rewards_enabled'] === '1';
+  const panelControlEnabled = req.body['discord.panel_control_enabled'] === '1';
+  const clientId = String(req.body['discord.client_id'] || '').trim();
+  const guildId = String(req.body['discord.guild_id'] || '').trim();
+  const redirectUri = String(req.body['discord.redirect_uri'] || '').trim();
+  const clientSecret = req.body.clear_client_secret === '1' ? '' : (String(req.body['discord.client_secret'] || '').trim() || settings.get('discord.client_secret') || '');
+  const botToken = req.body.clear_bot_token === '1' ? '' : (String(req.body['discord.bot_token'] || '').trim() || settings.get('discord.bot_token') || '');
+  const invitesRequired = integer('discord.invites_required', 1, 1000);
+  const rewardCpus = integer('discord.reward_cpus', 1, 64);
+  const rewardMemory = integer('discord.reward_memory', 128, 65536);
+  const rewardMaxActive = integer('discord.reward_max_active', 1, 10);
+  const rewardDisk = String(req.body['discord.reward_disk'] || '').trim().toUpperCase();
+  const rewardOs = String(req.body['discord.reward_os'] || '');
+  const rewardOsList = vmService.getOsList().filter((os) => ['ubuntu', 'debian'].includes(String(os[1] || '').toLowerCase()));
+  let callbackUrl = null;
+  try { callbackUrl = redirectUri ? new URL(redirectUri) : null; } catch (_) {}
+
+  if (!enableKvm && !enableLxc) return fail('At least one virtualization backend must remain enabled.');
+  if (!['convoy', 'classic'].includes(panelUiStyle)) return fail('Choose a supported panel interface style.');
+  if (!['kvm', 'lxc'].includes(defaultBackend) || (defaultBackend === 'kvm' && !enableKvm) || (defaultBackend === 'lxc' && !enableLxc)) {
+    return fail('Choose an enabled default virtualization backend.');
+  }
+  if (!/^[a-zA-Z0-9_.-]{1,15}$/.test(bridge)) return fail('The LXC bridge name must be 1-15 letters, numbers, dots, underscores, or hyphens.');
+  if (clientId && !/^\d{15,22}$/.test(clientId)) return fail('Discord Client ID must be a numeric application ID.');
+  if (guildId && !/^\d{15,22}$/.test(guildId)) return fail('Discord Server ID must be numeric.');
+  if (redirectUri && (!callbackUrl || !['http:', 'https:'].includes(callbackUrl.protocol))) return fail('Enter a valid HTTP or HTTPS Discord callback URL.');
+  if (invitesRequired === null || rewardCpus === null || rewardMemory === null || rewardMaxActive === null) {
+    return fail('Reward invite, CPU, memory, or active-server limits are outside the allowed range.');
+  }
+  if (!/^[1-9]\d{0,4}[GM]$/.test(rewardDisk)) return fail('Reward disk must be between 1 and 99999 GB or MB, such as 10G.');
+  if (!rewardOsList.some((os) => os[0] === rewardOs)) return fail('Select a supported Ubuntu or Debian LXC image for reward servers.');
+  if (rewardsEnabled && !enableLxc) return fail('LXC must be enabled to provide Discord reward VPSs.');
+  if (rewardsEnabled && (!clientId || !clientSecret || !botToken || !guildId)) {
+    return fail('Configure the Discord application, client secret, bot token, and server ID before enabling rewards.');
+  }
+  if (panelControlEnabled && (!clientId || !clientSecret || !botToken || !guildId)) {
+    return fail('Configure the Discord application, client secret, bot token, and server ID before enabling bot control.');
+  }
+
+  try {
+    const values = {
+      'panel.ui_style': panelUiStyle,
+      'vm.enable_kvm': enableKvm ? '1' : '0',
+      'vm.enable_lxc': enableLxc ? '1' : '0',
+      'vm.default_virtualization': defaultBackend,
+      'vm.lxc_bridge': bridge,
+      'discord.rewards_enabled': rewardsEnabled ? '1' : '0',
+      'discord.panel_control_enabled': panelControlEnabled ? '1' : '0',
+      'discord.client_id': clientId,
+      'discord.redirect_uri': redirectUri,
+      'discord.client_secret': clientSecret,
+      'discord.bot_token': botToken,
+      'discord.guild_id': guildId,
+      'discord.invites_required': String(invitesRequired),
+      'discord.boosts_required': '1',
+      'discord.reward_cpus': String(rewardCpus),
+      'discord.reward_memory': String(rewardMemory),
+      'discord.reward_disk': rewardDisk,
+      'discord.reward_os': rewardOs,
+      'discord.reward_max_active': String(rewardMaxActive),
+    };
+    for (const [key, value] of Object.entries(values)) await settings.set(key, value);
+    discordService.startGateway();
+    await activity.logActivity({
+      user_id: req.user.id,
+      event: 'admin:platform_settings_update',
+      details: { enableKvm, enableLxc, defaultBackend, rewardsEnabled, panelControlEnabled },
+    });
+    return res.redirect('/admin/platform?updated=1');
+  } catch (error) {
+    return next(error);
+  }
+});
 
 router.get('/admin', async (req, res, next) => {
   try {
@@ -315,8 +431,14 @@ router.post('/admin/servers/:id/manage/suspension', express.json(), async (req, 
     const vm = await vmService.getVm(req.params.id);
     if (!vm) return res.status(404).json({ error: 'Server not found' });
     const action = req.body.action || (vm.suspended ? 'unsuspend' : 'suspend');
+    if (!['suspend', 'unsuspend'].includes(action)) {
+      return res.status(400).json({ error: 'Invalid suspension action.' });
+    }
     const suspend = action === 'suspend';
-    await collections.vms.updateOne({ id: Number(vm.id) }, { $set: { suspended: suspend, updated_at: new Date() } });
+    const update = suspend
+      ? { $set: { suspended: true, updated_at: new Date() } }
+      : { $set: { suspended: false, updated_at: new Date() }, $unset: { suspension_reason: '', suspended_at: '' } };
+    await collections.vms.updateOne({ id: Number(vm.id) }, update);
     if (suspend && vmService.isRunning(vm)) {
       await vmService.stop(vm, { user: req.user, force: true });
     }
@@ -326,10 +448,38 @@ router.post('/admin/servers/:id/manage/suspension', express.json(), async (req, 
   }
 });
 
+router.post('/admin/servers/:id/manage/nested-containers', express.json(), async (req, res) => {
+  try {
+    const vm = await vmService.getVm(req.params.id);
+    if (!vm) return res.status(404).json({ error: 'Server not found' });
+    if (vm.virtualization === 'lxc') {
+      return res.status(400).json({ error: 'Nested-container policy is only available for KVM virtual machines.' });
+    }
+    if (typeof req.body.allow_nested_containers !== 'boolean') {
+      return res.status(400).json({ error: 'Choose whether nested LXC/LXD is allowed.' });
+    }
+    const allow = req.body.allow_nested_containers;
+    await collections.vms.updateOne(
+      { id: Number(vm.id) },
+      { $set: { allow_nested_containers: allow, updated_at: new Date() } }
+    );
+    await activity.logActivity({
+      user_id: req.user.id,
+      vm_id: vm.id,
+      event: 'vm:nested_containers_policy',
+      details: { allow_nested_containers: allow },
+    });
+    res.json({ ok: true, allow_nested_containers: allow });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.post('/admin/servers/:id/manage/reinstall', express.json(), async (req, res) => {
   try {
     const vm = await vmService.getVm(req.params.id);
     if (!vm) return res.status(404).json({ error: 'Server not found' });
+    if (vm.virtualization === 'lxc') return res.status(400).json({ error: 'Reinstall is not available for LXC containers yet.' });
     if (vmService.isRunning(vm)) {
       await vmService.stop(vm, { user: req.user, force: true });
     }
@@ -367,34 +517,147 @@ router.post('/admin/servers/:id/delete', express.json(), async (req, res) => {
   }
 });
 
+function publicProvisionJob(job) {
+  return {
+    jobId: job.job_id,
+    status: job.status,
+    progress: Number(job.progress) || 0,
+    stage: job.stage || 'Queued',
+    detail: job.detail || '',
+    specifications: job.specifications || {},
+    vm: job.vm || null,
+    error: job.error || '',
+    updatedAt: job.updated_at,
+  };
+}
+
+async function updateProvisionJob(jobId, fields) {
+  await collections.provision_jobs.updateOne(
+    { job_id: jobId },
+    { $set: { ...fields, updated_at: new Date().toISOString(), expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000) } }
+  );
+}
+
+function removeTemporaryUpload(data) {
+  if (!data.upload_image?.path) return;
+  try { fs2.unlinkSync(data.upload_image.path); } catch (error) {
+    if (error.code !== 'ENOENT') logger.warn('[vm-create] temporary upload cleanup failed: ' + error.message);
+  }
+}
+
+async function runProvisionJob(jobId, owner, data) {
+  try {
+    await updateProvisionJob(jobId, { status: 'running', progress: 2, stage: 'Starting provisioning', detail: 'The panel is preparing the requested server.' });
+    const vm = await vmService.create({
+      user: owner,
+      data,
+      onProgress: (progress) => updateProvisionJob(jobId, progress),
+    });
+    await updateProvisionJob(jobId, {
+      status: 'completed',
+      progress: 100,
+      stage: 'Deployment complete',
+      detail: 'The server is ready.',
+      vm: { id: vm.id, name: vm.name },
+    });
+  } catch (error) {
+    logger.error(`[vm-create] provisioning job ${jobId} failed: ${error.message}`);
+    try {
+      await updateProvisionJob(jobId, {
+        status: 'failed',
+        stage: 'Deployment failed',
+        detail: 'Provisioning could not be completed.',
+        error: error.message,
+      });
+    } catch (jobError) {
+      logger.error(`[vm-create] could not save failure for ${jobId}: ${jobError.message}`);
+    }
+  } finally {
+    removeTemporaryUpload(data);
+  }
+}
+
+router.get('/admin/servers/create/progress/:jobId', async (req, res, next) => {
+  try {
+    const job = await collections.provision_jobs.findOne({ job_id: String(req.params.jobId), user_id: Number(req.user.id) });
+    if (!job) return res.status(404).render('error/404', {
+      code: 404,
+      title: 'Provisioning job not found',
+      message: 'This deployment is unavailable or no longer belongs to your account.',
+      settings: settings.all(),
+      user: req.user,
+    });
+    render(res, 'createProgress', { job: publicProvisionJob(job) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get('/admin/servers/create/progress/:jobId/status', async (req, res, next) => {
+  try {
+    const job = await collections.provision_jobs.findOne({ job_id: String(req.params.jobId), user_id: Number(req.user.id) });
+    if (!job) return res.status(404).json({ ok: false, error: 'Provisioning job not found' });
+    res.json({ ok: true, job: publicProvisionJob(job) });
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.get('/admin/servers/create', async (req, res, next) => {
   try {
     const users = await collections.users.find({}, { projection: { id: 1, username: 1, email: 1 } }).sort({ username: 1 }).toArray();
-    render(res, 'create', { osList: vmService.getOsList(), users });
+    render(res, 'create', { osList: vmService.getOsList(), users, lxcInstalled: vmService.usage().lxc });
   } catch (err) {
     next(err);
   }
 });
 
 router.post('/admin/servers/create', createUpload.fields([{ name: 'image', maxCount: 1 }]), async (req, res) => {
+  const files = req.files || {};
+  const data = { ...req.body };
+  if (files.image && files.image[0]) data.upload_image = files.image[0];
   try {
-    const files = req.files || {};
     const ownerId = parseInt(req.body.owner_id || req.user.id, 10);
     const owner = await collections.users.findOne({ id: ownerId });
-    if (!owner) return res.status(400).json({ error: 'Owner not found' });
-    const data = { ...req.body };
+    if (!owner) {
+      removeTemporaryUpload(data);
+      return res.status(400).json({ error: 'Owner not found' });
+    }
     try { if (data.port_forwards) data.port_forwards = JSON.parse(data.port_forwards); } catch (_) { data.port_forwards = []; }
-    if (files.image && files.image[0]) data.upload_image = files.image[0];
-    if (files.image && files.image[0]) {
-      try { fs2.mkdirSync(config.root + '/data/tmp', { recursive: true }); } catch (_) {}
-    }
-    const vm = await vmService.create({ user: owner, data });
-    // keep the image file if it was a download; clean temp upload if used
-    if (data.upload_image) {
-      try { fs2.unlinkSync(data.upload_image.path); } catch (_) {}
-    }
-    return res.json({ ok: true, vm, redirect: `/admin/servers/${vm.id}` });
+    const jobId = crypto.randomUUID();
+    const virtualization = String(data.virtualization || settings.get('vm.default_virtualization') || 'kvm');
+    const specifications = {
+      name: String(data.name || '').trim(),
+      virtualization,
+      os: String(data.os || ''),
+      cpus: Math.max(1, Number(data.cpus) || 1),
+      memory: Math.max(128, Number(data.memory) || 1024),
+      disk: String(data.disk_size || '20G').toUpperCase(),
+      sshPort: String(data.ssh_port || 'Auto'),
+      owner: owner.username,
+      allowNestedContainers: virtualization === 'kvm'
+        && (data.allow_nested_containers === true || data.allow_nested_containers === '1' || data.allow_nested_containers === 'true'),
+    };
+    await collections.provision_jobs.insertOne({
+      job_id: jobId,
+      user_id: Number(req.user.id),
+      status: 'queued',
+      progress: 0,
+      stage: 'Queued',
+      detail: 'Waiting for the provisioning worker.',
+      specifications,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000),
+    });
+    res.json({ ok: true, jobId, redirect: `/admin/servers/create/progress/${jobId}` });
+    setImmediate(() => {
+      runProvisionJob(jobId, owner, data).catch((error) => {
+        logger.error(`[vm-create] unhandled provisioning worker error ${jobId}: ${error.message}`);
+      });
+    });
   } catch (e) {
+    removeTemporaryUpload(data);
     return res.status(500).json({ error: e.message });
   }
 });

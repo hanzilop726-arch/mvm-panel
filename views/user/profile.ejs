@@ -10,6 +10,7 @@
       <div class="card-title">Account</div>
       <% if (typeof error !== 'undefined' && error) { %><div class="alert alert-error"><%= error %></div><% } %>
       <% if (typeof success !== 'undefined' && success) { %><div class="alert alert-success"><%= success %></div><% } %>
+      <% if (typeof connected !== 'undefined' && connected) { %><div class="alert alert-success">Discord account connected successfully.</div><% } %>
       <form method="post" action="/profile">
         <div class="flex mb-2">
           <div class="avatar" style="width:64px;height:64px;font-size:22px"><% if (user.avatar) { %><img src="<%= user.avatar %>"/><% } else { %><%= user.username[0].toUpperCase() %><% } %></div>
@@ -48,6 +49,19 @@
           <% if (user.tfa_enabled) { %><button class="btn btn-danger" onclick="disableTfa()">Disable 2FA</button><% } %>
         </div>
       </div>
+      <% if (String(settings['discord.panel_control_enabled']) === '1' || String(settings['discord.rewards_enabled']) === '1') { %>
+        <div class="card mt-3">
+          <div class="card-title">Discord account</div>
+          <% if (typeof error !== 'undefined' && error) { %><div class="alert alert-error"><%= error %></div><% } %>
+          <% if (user.discord_id) { %>
+            <p class="muted mb-2">Connected as <strong><%= user.discord_username || 'Discord user' %></strong>.</p>
+            <span class="pill pill-green">Connected</span>
+          <% } else { %>
+            <p class="muted mb-2">Link Discord to use the panel bot and any enabled community rewards.</p>
+            <a class="btn btn-primary" href="/auth/discord/start?returnTo=%2Fprofile">Connect Discord</a>
+          <% } %>
+        </div>
+      <% } %>
     </div>
   </div>
 

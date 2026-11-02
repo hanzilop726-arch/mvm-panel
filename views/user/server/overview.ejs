@@ -40,6 +40,7 @@
           <span id="pulseDot" class="pulse-dot" style="<%= vm.status === 'running' ? 'display:inline-block' : 'display:none' %>"></span>
           <span id="statusText"><%= vm.status %></span>
         </span>
+        <span class="pill pill-blue"><%= vm.virtualization === 'lxc' ? 'LXC container' : 'KVM virtual machine' %></span>
       </h2>
     </div>
 

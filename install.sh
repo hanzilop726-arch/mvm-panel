@@ -92,7 +92,8 @@ do_install() {
   apt-get install -y --no-install-recommends \
     git curl wget openssl ca-certificates tar gzip iproute2 procps \
     build-essential python3 make g++ \
-    qemu-system-x86 qemu-utils cloud-image-utils || true
+    qemu-system-x86 qemu-utils cloud-image-utils \
+    lxc lxc-templates e2fsprogs || true
 
   # Step 2: Node.js 18+ LTS Check
   log_info "Step 3/8: Verifying Node.js 18+ LTS environment..."

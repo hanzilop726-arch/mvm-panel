@@ -46,3 +46,5 @@ docker run -d \
 - **Engine**: QEMU uses `-machine type=pc,accel=tcg` and `-cpu qemu64`.
 - **Port Forwarding**: Automatic user-space networking with port forwarding for SSH, VNC, and Agent.
 - **Compatibility**: Works on any Linux/Mac/Windows host even if nested virtualization is disabled.
+
+> **LXC note:** This compose setup supports QEMU only. LXC provisioning requires host LXC, loop mounts, a configured bridge, and additional host privileges; do not enable LXC inside this container without separately designing and hardening the required privileged deployment.

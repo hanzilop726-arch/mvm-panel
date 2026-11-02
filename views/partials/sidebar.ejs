@@ -44,6 +44,7 @@ const iconRocket = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" s
     </div>
     <a href="/admin" class="nav-link <%= act('admin-dashboard', page) %>"><span class="v-icon"><%- iconHome %></span><span>Overview</span></a>
     <a href="/admin/settings" class="nav-link <%= act('admin-settings', page) %>"><span class="v-icon"><%- iconSettings %></span><span>Settings</span></a>
+    <a href="/admin/platform" class="nav-link <%= act('admin-platform', page) %>"><span class="v-icon"><%- iconRocket %></span><span>Platform Setup</span></a>
     <a href="/admin/settings?tab=arix" class="nav-link arix-nav-glow"><span class="v-icon"><%- iconWand %></span><span>Arix Theme</span></a>
     <a href="/admin/api" class="nav-link <%= act('admin-api', page) %>"><span class="v-icon"><%- iconKey %></span><span>Application API</span></a>
 
@@ -93,6 +94,9 @@ const iconRocket = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" s
     <a href="/profile" class="nav-link <%= act('profile', page) %>"><span class="v-icon"><%- iconUser %></span><span>Profile</span></a>
     <a href="/settings" class="nav-link <%= act('userSettings', page) %>"><span class="v-icon"><%- iconSettings %></span><span>Account Settings</span></a>
     <a href="/activity" class="nav-link <%= act('activity', page) %>"><span class="v-icon"><%- iconActivity %></span><span>Activity</span></a>
+    <% if (settings && String(settings['discord.rewards_enabled']) === '1') { %>
+      <a href="/rewards" class="nav-link <%= act('rewards', page) %>"><span class="v-icon"><%- iconRocket %></span><span>Discord Rewards</span></a>
+    <% } %>
 
     <% if (isAdmin) { %>
       <div class="nav-section-title">Administration</div>

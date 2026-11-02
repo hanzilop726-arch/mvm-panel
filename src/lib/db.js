@@ -57,6 +57,7 @@ const defaultSettings = {
   'panel.bg_file': '',
   'panel.bg_video_file': '',
   'panel.bg_video_url': '',
+  'panel.ui_style': 'convoy',
   'panel.bg_cover': '1',
   'panel.bg_overlay': '0.55',
   'panel.music_mode': 'none',
@@ -69,7 +70,7 @@ const defaultSettings = {
   'panel.navbar_style': 'glass',
   'panel.navbar_transparent': '1',
   'panel.navbar_blur': '1',
-  'panel.accent': '#22c55e',
+  'panel.accent': '#ef4444',
   'panel.theme': 'dark',
   'panel.wallpapers_api_key': '',
   'billing.currency': 'USD',
@@ -111,6 +112,24 @@ const defaultSettings = {
   'vm.default_cpus': '2',
   'vm.default_disk': '20G',
   'vm.default_os': 'Ubuntu 24.04',
+  'vm.enable_kvm': '1',
+  'vm.enable_lxc': '0',
+  'vm.default_virtualization': 'kvm',
+  'vm.lxc_bridge': 'lxcbr0',
+  'discord.rewards_enabled': '0',
+  'discord.panel_control_enabled': '0',
+  'discord.client_id': '',
+  'discord.client_secret': '',
+  'discord.redirect_uri': '',
+  'discord.bot_token': '',
+  'discord.guild_id': '',
+  'discord.invites_required': '5',
+  'discord.boosts_required': '1',
+  'discord.reward_cpus': '1',
+  'discord.reward_memory': '1024',
+  'discord.reward_disk': '10G',
+  'discord.reward_os': 'Ubuntu 24.04',
+  'discord.reward_max_active': '1',
   'vm.os_list': JSON.stringify([
     ['Ubuntu 22.04', 'ubuntu', 'jammy', 'https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-amd64.img', 'ubuntu', 'root'],
     ['Ubuntu 24.04', 'ubuntu', 'noble', 'https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img', 'ubuntu', 'root'],
@@ -192,7 +211,8 @@ async function initDb() {
     'api_keys', 'webhooks', 'audit_events', 'plugins_config',
     'billing_plans', 'billing_invoices', 'billing_coupons',
     'update_history', 'quotas', 'templates', 'user_sessions',
-    'nodes', 'node_allocations', 'locations'
+    'nodes', 'node_allocations', 'locations',
+    'discord_oauth_states', 'discord_invites', 'provision_jobs'
   ];
   for (const name of names) {
     collections[name] = dbInstance.collection(name);
@@ -208,6 +228,7 @@ async function initDb() {
       collections.users.createIndex({ id: 1 }, { unique: true }),
       collections.users.createIndex({ username: 1 }, { unique: true }),
       collections.users.createIndex({ email: 1 }, { unique: true }),
+      collections.users.createIndex({ discord_id: 1 }, { unique: true, sparse: true }),
       collections.vms.createIndex({ id: 1 }, { unique: true }),
       collections.vms.createIndex({ uuid: 1 }, { unique: true }),
       collections.vms.createIndex({ owner_id: 1 }),
@@ -239,6 +260,12 @@ async function initDb() {
       collections.billing_coupons.createIndex({ id: 1 }, { unique: true }),
       collections.update_history.createIndex({ id: 1 }, { unique: true }),
       collections.update_history.createIndex({ timestamp: -1 }),
+      collections.discord_oauth_states.createIndex({ state: 1 }, { unique: true }),
+      collections.discord_oauth_states.createIndex({ expires_at: 1 }, { expireAfterSeconds: 0 }),
+      collections.discord_invites.createIndex({ invitee_id: 1 }, { unique: true }),
+      collections.discord_invites.createIndex({ inviter_id: 1 }),
+      collections.provision_jobs.createIndex({ job_id: 1 }, { unique: true }),
+      collections.provision_jobs.createIndex({ expires_at: 1 }, { expireAfterSeconds: 0 }),
     ]);
   } catch (e) {
     logger.warn('[mongo] index creation: ' + e.message);
@@ -252,6 +279,8 @@ async function initDb() {
         value = 'MVM Panel';
       } else if (row.key === 'panel.favicon_name' && String(value).trim() === 'vpanel') {
         value = 'MVM Panel';
+      } else if (['panel.accent', 'arix.primary'].includes(row.key) && String(value).trim().toLowerCase() === '#22c55e') {
+        value = '#ef4444';
       }
       if (value !== row.value) {
         await collections.settings.updateOne({ key: row.key }, { $set: { value } });

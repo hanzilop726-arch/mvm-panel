@@ -1,0 +1,138 @@
+<%- include('../partials/head', { title: 'Platform Setup' }) %>
+<%- include('../partials/ambient') %>
+<%- include('../partials/topbar') %>
+<%- include('../partials/sidebar') %>
+<div class="main">
+  <div class="mb-3">
+    <div class="pill pill-primary mb-2">PLATFORM CONFIGURATION</div>
+    <h2 style="font-size:24px;margin:0">Virtualization &amp; Discord Rewards</h2>
+    <p class="muted">Choose available server runtimes and configure optional community VPS rewards.</p>
+  </div>
+  <% if (error) { %><div class="alert alert-error"><%= error %></div><% } %>
+  <% if (updated) { %><div class="alert alert-success">Platform settings saved.</div><% } %>
+
+  <form method="post" action="/admin/platform">
+    <div class="card mb-3">
+      <div class="card-title">Panel interface</div>
+      <div class="form-group">
+        <label for="panelUiStyle">Visual style preset</label>
+        <select id="panelUiStyle" name="panel.ui_style">
+          <option value="convoy" <%= all['panel.ui_style'] !== 'classic' ? 'selected' : '' %>>Convoy-inspired — clean infrastructure dashboard</option>
+          <option value="classic" <%= all['panel.ui_style'] === 'classic' ? 'selected' : '' %>>MVM classic — current Arix surface styling</option>
+        </select>
+        <div class="form-hint">This changes layout surfaces only. Your existing panel name, logo, accent, backgrounds, and theme settings remain customizable.</div>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-title">Virtualization backends</div>
+      <p class="muted text-sm">KVM stays enabled by default. LXC containers share the host kernel and require LXC packages and a configured Linux bridge.</p>
+      <div class="grid grid-2">
+        <label class="flex" style="gap:10px;align-items:center">
+          <input type="checkbox" name="vm.enable_kvm" value="1" <%= String(all['vm.enable_kvm']) !== '0' ? 'checked' : '' %>/>
+          <span><strong>Allow KVM virtual machines</strong><br/><span class="muted text-sm">QEMU/KVM virtual machines</span></span>
+        </label>
+        <label class="flex" style="gap:10px;align-items:center">
+          <input type="checkbox" name="vm.enable_lxc" value="1" <%= String(all['vm.enable_lxc']) === '1' ? 'checked' : '' %>/>
+          <span><strong>Allow LXC containers</strong><br/><span class="muted text-sm">Linux containers with CPU, memory, and disk limits</span></span>
+        </label>
+      </div>
+      <div class="grid grid-2 mt-3">
+        <div class="form-group">
+          <label>Default backend</label>
+          <select name="vm.default_virtualization">
+            <option value="kvm" <%= all['vm.default_virtualization'] !== 'lxc' ? 'selected' : '' %>>KVM</option>
+            <option value="lxc" <%= all['vm.default_virtualization'] === 'lxc' ? 'selected' : '' %>>LXC</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>LXC network bridge</label>
+          <input name="vm.lxc_bridge" value="<%= all['vm.lxc_bridge'] || 'lxcbr0' %>" maxlength="15" required/>
+          <div class="muted text-sm mt-1">The bridge must already exist and provide DHCP/NAT for containers.</div>
+        </div>
+      </div>
+      <div class="muted text-sm">Detected LXC tools: <strong><%= lxcInstalled ? 'available' : 'not installed' %></strong></div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="flex-between" style="gap:12px;flex-wrap:wrap">
+        <div>
+          <div class="card-title">Discord panel control bot</div>
+          <p class="muted text-sm">Enable Discord slash commands for VPS list, status, start, stop, and restart. The shared bot stays online if Discord rewards are enabled.</p>
+        </div>
+        <label class="flex" style="gap:8px;align-items:center">
+          <input type="checkbox" name="discord.panel_control_enabled" value="1" <%= String(all['discord.panel_control_enabled']) === '1' ? 'checked' : '' %>/>
+          Enable VPS commands
+        </label>
+      </div>
+      <div class="alert alert-info text-sm">
+        Discord users must link their account from their panel profile. Users can control only their own VPS; linked panel admins can control all VPSs. Commands cannot create/delete servers or change panel settings.
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="flex-between" style="gap:12px;flex-wrap:wrap">
+        <div>
+          <div class="card-title">Discord integration</div>
+          <p class="muted text-sm">OAuth links panel accounts. A bot tracks invite joins and checks active server boosts.</p>
+        </div>
+        <label class="flex" style="gap:8px;align-items:center">
+          <input type="checkbox" name="discord.rewards_enabled" value="1" <%= String(all['discord.rewards_enabled']) === '1' ? 'checked' : '' %>/>
+          Enable Discord VPS rewards
+        </label>
+      </div>
+
+      <div class="grid grid-2">
+        <div class="form-group">
+          <label>Discord Application Client ID</label>
+          <input name="discord.client_id" value="<%= all['discord.client_id'] || '' %>" inputmode="numeric"/>
+        </div>
+        <div class="form-group">
+          <label>OAuth callback URL</label>
+          <input name="discord.redirect_uri" value="<%= all['discord.redirect_uri'] || defaultRedirectUri %>" placeholder="https://panel.example.com/auth/discord/callback"/>
+        </div>
+        <div class="form-group">
+          <label>Client Secret</label>
+          <input name="discord.client_secret" type="password" autocomplete="new-password" placeholder="<%= clientSecretConfigured ? 'Configured — leave blank to keep current secret' : 'Paste the application client secret' %>"/>
+          <% if (clientSecretConfigured) { %><label class="flex mt-2" style="gap:8px;align-items:center"><input type="checkbox" name="clear_client_secret" value="1"/> Clear saved client secret</label><% } %>
+        </div>
+        <div class="form-group">
+          <label>Bot Token</label>
+          <input name="discord.bot_token" type="password" autocomplete="new-password" placeholder="<%= botTokenConfigured ? 'Configured — leave blank to keep current token' : 'Paste the bot token' %>"/>
+          <% if (botTokenConfigured) { %><label class="flex mt-2" style="gap:8px;align-items:center"><input type="checkbox" name="clear_bot_token" value="1"/> Clear saved bot token</label><% } %>
+        </div>
+        <div class="form-group">
+          <label>Discord Server (Guild) ID</label>
+          <input name="discord.guild_id" value="<%= all['discord.guild_id'] || '' %>" inputmode="numeric"/>
+        </div>
+      </div>
+      <div class="alert alert-info text-sm">
+        Invite verification requires the bot to be in the configured server with <strong>Manage Server</strong> permission and the privileged <strong>Server Members Intent</strong> enabled in the Discord Developer Portal. Add <code><%= defaultRedirectUri %></code> to the OAuth redirect list.
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-title">Reward eligibility &amp; VPS limits</div>
+      <div class="muted text-sm mb-3">Users qualify with either the invite threshold or an active boost. Reward VPSs use LXC.</div>
+      <div class="grid grid-3">
+        <div class="form-group"><label>Verified new-member invites</label><input type="number" name="discord.invites_required" min="1" max="1000" value="<%= all['discord.invites_required'] || 5 %>" required/></div>
+        <div class="form-group"><label>Boost requirement</label><input value="1 active boost" readonly/></div>
+        <div class="form-group"><label>Maximum active reward VPSs per user</label><input type="number" name="discord.reward_max_active" min="1" max="10" value="<%= all['discord.reward_max_active'] || 1 %>" required/></div>
+        <div class="form-group"><label>Reward vCPU</label><input type="number" name="discord.reward_cpus" min="1" max="64" value="<%= all['discord.reward_cpus'] || 1 %>" required/></div>
+        <div class="form-group"><label>Reward memory (MB)</label><input type="number" name="discord.reward_memory" min="128" max="65536" step="128" value="<%= all['discord.reward_memory'] || 1024 %>" required/></div>
+        <div class="form-group"><label>Reward disk</label><input name="discord.reward_disk" value="<%= all['discord.reward_disk'] || '10G' %>" pattern="[1-9][0-9]{0,4}[GMgm]" required/></div>
+        <div class="form-group">
+          <label>Reward operating system</label>
+          <select name="discord.reward_os">
+            <% for (const os of rewardOsList) { %>
+              <option value="<%= os[0] %>" <%= (all['discord.reward_os'] || 'Ubuntu 24.04') === os[0] ? 'selected' : '' %>><%= os[0] %></option>
+            <% } %>
+          </select>
+        </div>
+      </div>
+    </div>
+    <button class="btn btn-primary" type="submit">Save platform settings</button>
+  </form>
+</div>
+<%- include('../partials/music') %>
+<%- include('../partials/foot') %>

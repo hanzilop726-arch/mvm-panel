@@ -1,5 +1,6 @@
 const express = require('express');
 const path = require('path');
+const crypto = require('crypto');
 const qrcode = require('qrcode');
 const config = require('../lib/config');
 const { collections, getNextId, settings } = require('../lib/db');
@@ -10,6 +11,7 @@ const authService = require('../services/authService');
 const activity = require('../services/activityService');
 const aiLogService = require('../services/aiLogService');
 const resourceService = require('../services/resourceService');
+const discordService = require('../services/discordService');
 const { requireAuth } = require('../middleware/auth');
 const { uploadAvatar } = require('../middleware/upload');
 const router = express.Router();
@@ -63,6 +65,84 @@ router.get('/dashboard', async (req, res, next) => {
     render(res, 'dashboard', { vms, subVms, running, recentActivity });
   } catch (err) {
     next(err);
+  }
+});
+
+router.get('/rewards', async (req, res, next) => {
+  try {
+    const rewardStatus = await discordService.getRewardStatus(req.user);
+    render(res, 'rewards', {
+      rewardStatus,
+      connected: req.query.connected === '1',
+      error: req.query.error || '',
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/rewards/vps', express.json(), async (req, res) => {
+  if (!discordService.enabled()) return res.status(403).json({ ok: false, error: 'Discord rewards are disabled by the administrator.' });
+  const lockToken = crypto.randomUUID();
+  const locked = await collections.users.updateOne(
+    {
+      id: Number(req.user.id),
+      $or: [
+        { discord_reward_lock: { $exists: false } },
+        { discord_reward_lock_expires: { $lt: new Date() } },
+      ],
+    },
+    {
+      $set: {
+        discord_reward_lock: lockToken,
+        discord_reward_lock_expires: new Date(Date.now() + 10 * 60 * 1000),
+      },
+    }
+  );
+  if (locked.matchedCount !== 1) return res.status(409).json({ ok: false, error: 'A reward server claim is already in progress.' });
+
+  try {
+    const currentUser = await collections.users.findOne({ id: Number(req.user.id) });
+    const status = await discordService.getRewardStatus(currentUser);
+    if (!status.eligible) return res.status(403).json({ ok: false, error: status.error || status.reason || 'You are not eligible for a reward VPS yet.' });
+    if (status.activeCount >= status.maxActive) return res.status(409).json({ ok: false, error: 'You already have the maximum number of active reward servers.' });
+    if (String(settings.get('vm.enable_lxc')) !== '1') {
+      return res.status(503).json({ ok: false, error: 'LXC rewards are currently unavailable. Contact the administrator.' });
+    }
+
+    const plan = {
+      cpus: Math.max(1, Number(settings.get('discord.reward_cpus')) || 1),
+      memory: Math.max(128, Number(settings.get('discord.reward_memory')) || 1024),
+      disk_size: String(settings.get('discord.reward_disk') || '10G'),
+    };
+    const os = String(settings.get('discord.reward_os') || 'Ubuntu 24.04');
+    const namePart = String(currentUser.username || 'member').toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').slice(0, 20) || 'member';
+    const password = crypto.randomBytes(18).toString('base64url');
+    const vm = await vmService.create({
+      user: currentUser,
+      data: {
+        name: `reward-${namePart}-${crypto.randomBytes(3).toString('hex')}`,
+        os,
+        virtualization: 'lxc',
+        reward_type: 'discord',
+        username: 'root',
+        password,
+        ...plan,
+      },
+    });
+    return res.json({
+      ok: true,
+      vm: { id: vm.id, name: vm.name },
+      credentials: { username: 'root', password },
+      redirect: `/servers/${vm.id}`,
+    });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message });
+  } finally {
+    await collections.users.updateOne(
+      { id: Number(req.user.id), discord_reward_lock: lockToken },
+      { $unset: { discord_reward_lock: '', discord_reward_lock_expires: '' } }
+    );
   }
 });
 
@@ -265,7 +345,7 @@ router.post('/servers/:id/backups/:bid/delete', loadVm, async (req, res) => {
 router.post('/servers/:id/backups/:bid/download', loadVm, async (req, res) => {
   const backup = await collections.backups.findOne({ id: Number(req.params.bid), vm_id: Number(req.vm.id) });
   if (!backup) return res.status(404).send('Backup not found');
-  res.download(backup.file, `${req.vm.name}-${backup.name}.qcow2`);
+  res.download(backup.file, `${req.vm.name}-${backup.name}${path.extname(backup.file)}`);
 });
 
 router.post('/servers/:id/schedules', loadVm, express.json(), async (req, res) => {
@@ -351,7 +431,11 @@ router.post('/servers/:id/delete', loadVm, async (req, res) => {
 router.get('/profile', async (req, res, next) => {
   try {
     const loginHistory = await activity.listLoginHistory({ user_id: req.user.id, limit: 50 });
-    render(res, 'profile', { loginHistory });
+    render(res, 'profile', {
+      loginHistory,
+      connected: req.query.connected === '1',
+      error: String(req.query.error || ''),
+    });
   } catch (err) {
     next(err);
   }

@@ -125,6 +125,7 @@
 
               <div class="flex" style="gap:6px;margin-bottom:12px;margin-top:8px">
                 <span class="pill pill-blue font-bold" style="font-size:10.5px"><%= v.os_type || 'linux' %></span>
+                <span class="pill pill-gray font-bold" style="font-size:10.5px"><%= v.virtualization === 'lxc' ? 'LXC container' : 'KVM VM' %></span>
                 <span class="pill mono font-bold" style="font-size:10.5px;color:var(--primary-light)">Port <%= v.ssh_port %></span>
               </div>
 

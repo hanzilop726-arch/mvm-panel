@@ -9,6 +9,7 @@ const config = require('../lib/config');
 const { collections, getNextId, settings } = require('../lib/db');
 const logger = require('../lib/logger');
 const { logActivity } = require('./activityService');
+const lxcService = require('./lxcService');
 
 const VM_DIR = config.vmDir;
 const RUNNING_PREFIX = 'qemu-system';
@@ -220,6 +221,7 @@ function pidOf(vm) {
 }
 
 function isRunning(vm) {
+  if (vm && vm.virtualization === 'lxc') return lxcService.isRunning(vm);
   const pid = pidOf(vm);
   if (!pid) return false;
   try {
@@ -259,6 +261,7 @@ function serializeVm(row) {
   const rawUuid = row.uuid || `vm-${String(row.id).padStart(8, '0')}`;
   const out = {
     ...row,
+    virtualization: row.virtualization || 'kvm',
     uuid: rawUuid,
     uuidShort: rawUuid.slice(0, 8),
     port_forwards: forwards,
@@ -393,9 +396,14 @@ ${agentSeedPayload(vm).map((c) => '  - ' + c).join('\n')}
   }
 }
 
-async function create({ user, data }) {
+async function create({ user, data, onProgress = async () => {} }) {
+  await onProgress({ progress: 3, stage: 'Validating configuration', detail: 'Checking runtime, operating system, and requested resources.' });
   const osList = getOsList();
   const osEntry = osList.find((o) => o[0] === data.os) || osList[0];
+  const virtualization = String(data.virtualization || settings.get('vm.default_virtualization') || 'kvm').toLowerCase();
+  if (!['kvm', 'lxc'].includes(virtualization)) throw new Error('Unsupported virtualization backend');
+  if (virtualization === 'kvm' && String(settings.get('vm.enable_kvm')) !== '1') throw new Error('KVM provisioning is disabled by the administrator');
+  if (virtualization === 'lxc' && String(settings.get('vm.enable_lxc')) !== '1') throw new Error('LXC provisioning is disabled by the administrator');
   const vmName = String(data.name || '').trim().replace(/\s+/g, '-');
   if (!vmName || !/^[a-zA-Z0-9_-]+$/.test(vmName)) {
     throw new Error('VM name can only contain letters, numbers, hyphens, underscores');
@@ -404,7 +412,7 @@ async function create({ user, data }) {
   if (exists) throw new Error(`VM "${vmName}" already exists`);
 
   const hostname = String(data.hostname || vmName).replace(/\s+/g, '-');
-  const username = String(data.username || osEntry[4] || 'root').toLowerCase();
+  const username = String(data.username || (virtualization === 'lxc' ? 'root' : osEntry[4]) || 'root').toLowerCase();
   const password = String(data.password || 'vpanel' + Math.random().toString(36).slice(2, 8));
   const diskSize = String(data.disk_size || settings.get('vm.default_disk') || '20G').toUpperCase();
   const memory = parseInt(data.memory || settings.get('vm.default_memory') || '2048', 10);
@@ -412,11 +420,17 @@ async function create({ user, data }) {
   const sshPort = data.ssh_port ? parseInt(data.ssh_port, 10) : await allocPort();
   if (isNaN(sshPort) || sshPort < 23 || sshPort > 65535) throw new Error('Invalid SSH port');
   if (inUsePort(sshPort)) throw new Error(`Port ${sshPort} is already in use`);
-  const vncPort = await allocVncPort();
-  const agentPort = await allocAgentPort();
-  const agentToken = genAgentToken();
+  const vncPort = virtualization === 'kvm' ? await allocVncPort() : null;
+  const agentPort = virtualization === 'kvm' ? await allocAgentPort() : null;
+  const agentToken = virtualization === 'kvm' ? genAgentToken() : null;
   const guiMode = data.gui_mode === true || data.gui_mode === '1' || data.gui_mode === 'true';
+  const allowNestedContainers = virtualization === 'kvm'
+    && (data.allow_nested_containers === true || data.allow_nested_containers === '1' || data.allow_nested_containers === 'true');
   const forwards = Array.isArray(data.port_forwards) ? data.port_forwards : [];
+  if (virtualization === 'lxc' && username !== 'root') throw new Error('LXC containers currently use the root SSH account');
+  if (virtualization === 'lxc' && guiMode) throw new Error('GUI display mode is only available for KVM virtual machines');
+  if (virtualization === 'lxc' && forwards.length) throw new Error('Additional port forwarding is only available for KVM virtual machines');
+  if (virtualization === 'lxc' && data.upload_image) throw new Error('Custom disk image uploads are only available for KVM virtual machines');
 
   const id = await getNextId('vms');
   const dir = path.join(VM_DIR, String(id));
@@ -427,6 +441,12 @@ async function create({ user, data }) {
     uuid: uuidv4(),
     owner_id: user.id,
     name: vmName,
+    virtualization,
+    allow_nested_containers: allowNestedContainers,
+    reward_type: data.reward_type === 'discord' ? 'discord' : null,
+    container_name: virtualization === 'lxc' ? String(id) : undefined,
+    description: String(data.description || '').trim(),
+    exp_date: data.exp_date ? String(data.exp_date) : null,
     os_type: osEntry[1] || '',
     codename: osEntry[2] || '',
     img_url: osEntry[3] || '',
@@ -453,6 +473,23 @@ async function create({ user, data }) {
   };
 
   await collections.vms.insertOne(vm);
+  await onProgress({ progress: 12, stage: 'Allocating server resources', detail: `Reserved server ID ${id} and SSH port ${sshPort}.` });
+
+  if (virtualization === 'lxc') {
+    try {
+      await onProgress({ progress: 28, stage: 'Preparing LXC container', detail: 'Creating the root filesystem and applying resource limits.' });
+      await lxcService.create(vm);
+      await setDbStatus(id, 'stopped');
+      await logActivity({ user_id: user.id, vm_id: id, event: 'vm:create', details: { name: vmName, port: sshPort, virtualization } });
+      await onProgress({ progress: 96, stage: 'Finalizing server', detail: 'Container is ready; saving deployment metadata.' });
+      await onProgress({ progress: 100, stage: 'Deployment complete', detail: 'Your LXC container is ready.' });
+      return getVm(id);
+    } catch (error) {
+      await collections.vms.deleteOne({ id: Number(id) });
+      try { fs.rmSync(vmDir(vm), { recursive: true, force: true }); } catch (_) {}
+      throw error;
+    }
+  }
 
   const img = vm.img_file;
   if (!fs.existsSync(img)) {
@@ -474,26 +511,41 @@ async function create({ user, data }) {
       if (!hasBin('wget')) throw new Error('wget is required to download cloud images');
       const r = spawnSync('qemu-img', ['info', img], { encoding: 'utf8' });
       if (!fs.existsSync(img) || r.status !== 0) {
+        await onProgress({ progress: 22, stage: 'Downloading operating system image', detail: `Downloading the official ${osEntry[0]} cloud image. This step may take a few minutes.` });
         logger.info(`[vm] downloading base image for ${osEntry[0]}`);
         await download(vm.img_url, img);
       }
     }
   }
 
+  await onProgress({ progress: 68, stage: 'Preparing virtual disk', detail: `Resizing the disk to ${diskSize}.` });
   const resize = spawnSync('qemu-img', ['resize', img, diskSize], { encoding: 'utf8' });
   if (resize.status !== 0) {
     logger.warn('[vm] resize failed (image may be unformatted): ' + (resize.stderr || ''));
   }
 
+  await onProgress({ progress: 82, stage: 'Generating first-boot configuration', detail: 'Writing secure SSH credentials and cloud-init metadata.' });
   writeSeed(vm);
   await setDbStatus(id, 'stopped');
   await logActivity({ user_id: user.id, vm_id: id, event: 'vm:create', details: { name: vmName, port: sshPort } });
 
+  await onProgress({ progress: 96, stage: 'Finalizing server', detail: 'Saving deployment metadata and preparing the server overview.' });
+  await onProgress({ progress: 100, stage: 'Deployment complete', detail: 'Your virtual machine is ready.' });
   return getVm(id);
 }
 
 async function start(vm, { user = null } = {}) {
-  if (isRunning(vm)) return { ok: true, message: 'already running' };
+  if (vm.suspended) throw new Error('This server is suspended. An administrator must unsuspend it before it can be started.');
+  if (vm.virtualization === 'lxc') {
+    if (isRunning(vm)) {
+      await lxcService.start(vm);
+      return { ok: true, message: 'already running' };
+    }
+    await lxcService.start(vm);
+    await setDbStatus(vm.id, 'running');
+    await logActivity({ user_id: user ? user.id : null, vm_id: vm.id, event: 'vm:start' });
+    return { ok: true };
+  }
   if (!fs.existsSync(vm.img_file)) throw new Error(`Image file not found: ${vm.img_file}`);
   if (!fs.existsSync(vm.seed_file)) {
     writeSeed(vm);
@@ -524,7 +576,13 @@ async function start(vm, { user = null } = {}) {
   return { ok: true };
 }
 
-function stop(vm, { user = null, force = false } = {}) {
+async function stop(vm, { user = null, force = false } = {}) {
+  if (vm.virtualization === 'lxc') {
+    await lxcService.stop(vm, { force });
+    await setDbStatus(vm.id, 'stopped');
+    await logActivity({ user_id: user ? user.id : null, vm_id: vm.id, event: force ? 'vm:kill' : 'vm:stop' });
+    return { ok: true };
+  }
   const pid = pidOf(vm);
   if (!pid) {
     setDbStatus(vm.id, 'stopped');
@@ -549,23 +607,32 @@ function stop(vm, { user = null, force = false } = {}) {
 }
 
 async function restart(vm, user) {
-  stop(vm, { user });
+  await stop(vm, { user });
   await new Promise((r) => setTimeout(r, 1500));
   return start(vm, { user });
 }
 
 async function remove(vm, user) {
   if (isRunning(vm)) await stop(vm, { user, force: true });
-  try {
-    fs.rmSync(vmDir(vm), { recursive: true, force: true });
-  } catch (e) {
-    logger.warn('[vm] cleanup error: ' + e.message);
+  if (vm.virtualization === 'lxc') await lxcService.destroy(vm);
+  else {
+    try {
+      fs.rmSync(vmDir(vm), { recursive: true, force: true });
+    } catch (e) {
+      logger.warn('[vm] cleanup error: ' + e.message);
+    }
   }
   await collections.backups.deleteMany({ vm_id: Number(vm.id) });
   await collections.schedules.deleteMany({ vm_id: Number(vm.id) });
   await collections.subusers.deleteMany({ vm_id: Number(vm.id) });
   await collections.activity_logs.deleteMany({ vm_id: Number(vm.id) });
   await collections.vms.deleteOne({ id: Number(vm.id) });
+  if (vm.reward_type === 'discord') {
+    await collections.users.updateOne(
+      { id: Number(vm.owner_id) },
+      { $unset: { discord_reward_lock: '', discord_reward_lock_expires: '' } }
+    );
+  }
   await logActivity({ user_id: user ? user.id : null, vm_id: vm.id, event: 'vm:delete', details: { name: vm.name } });
   return { ok: true };
 }
@@ -586,11 +653,14 @@ async function update(vm, data, user) {
       else $set[f] = data[f];
     }
   }
+  if (vm.virtualization === 'lxc' && ['memory', 'cpus', 'disk_size'].some((field) => data[field] !== undefined)) {
+    await lxcService.updateResources(vm, data);
+  }
   if (Object.keys($set).length) {
     $set.updated_at = now();
     await collections.vms.updateOne({ id: Number(vm.id) }, { $set });
   }
-  const needSeed = ['hostname', 'username', 'password'].some((f) => data[f] !== undefined);
+  const needSeed = vm.virtualization !== 'lxc' && ['hostname', 'username', 'password'].some((f) => data[f] !== undefined);
   if (needSeed) writeSeed(vm);
   await logActivity({ user_id: user ? user.id : null, vm_id: vm.id, event: 'vm:update', details: data });
   return getVm(vm.id);
@@ -607,6 +677,12 @@ async function transferOwner(vm, newOwnerId, actor) {
 async function resizeDisk(vm, newSize, user) {
   if (isRunning(vm)) throw new Error('Cannot resize disk while VM is running. Stop the VM first.');
   if (!/^[0-9]+[GM]$/i.test(newSize)) throw new Error('Disk size must be like 50G or 512M');
+  if (vm.virtualization === 'lxc') {
+    await lxcService.resizeDisk(vm, newSize);
+    await collections.vms.updateOne({ id: Number(vm.id) }, { $set: { disk_size: newSize.toUpperCase(), updated_at: now() } });
+    await logActivity({ user_id: user ? user.id : null, vm_id: vm.id, event: 'vm:resize', details: { newSize } });
+    return getVm(vm.id);
+  }
   const r = spawnSync('qemu-img', ['resize', vm.img_file, newSize], { encoding: 'utf8' });
   if (r.status !== 0) throw new Error(r.stderr || 'Failed to resize disk');
   await collections.vms.updateOne({ id: Number(vm.id) }, { $set: { disk_size: newSize.toUpperCase(), updated_at: now() } });
@@ -617,6 +693,7 @@ async function resizeDisk(vm, newSize, user) {
 function usage() {
   return {
     qemu: hasBin('qemu-system-x86_64'),
+    lxc: lxcService.isInstalled(),
     cloudLocalds: hasBin('cloud-localds'),
     wget: hasBin('wget'),
     kvm: hasBin('qemu-kvm') || hasBin('/usr/libexec/qemu-kvm'),
@@ -656,6 +733,11 @@ async function startOnBootAll() {
   }
 }
 
+async function reconcileLxcProxies() {
+  const vms = (await collections.vms.find({ virtualization: 'lxc' }).toArray()).map(serializeVm);
+  await lxcService.reconcile(vms);
+}
+
 function cpuUsage(vm) {
   const pid = pidOf(vm);
   if (!pid) return 0;
@@ -667,6 +749,13 @@ function cpuUsage(vm) {
 
 function diskActualUsage(vm) {
   try {
+    if (vm.virtualization === 'lxc') {
+      const rootfsImage = path.join(vmDir(vm), 'rootfs.img');
+      if (fs.existsSync(rootfsImage)) {
+        const out = execSync(`du -sb ${rootfsImage}`, { encoding: 'utf8' });
+        return parseInt(out.split('\t')[0], 10) || 0;
+      }
+    }
     if (vm.img_file && fs.existsSync(vm.img_file)) {
       return fs.statSync(vm.img_file).size;
     }
@@ -731,5 +820,5 @@ function liveStats(vm) {
 module.exports = {
   VM_DIR, vmDir, dbVms, getVm, create, start, stop, restart, remove, update,
   resizeDisk, isRunning, statusOf, serializeVm, canAccess, allocPort, allocVncPort, allocAgentPort,
-  parseForwards, usage, uptimeSeconds, memUsage, cpuUsage, diskActualUsage, liveStats, totalDiskUsage, startOnBootAll, getOsList, getBootLog, clearBootLog, hasKvm, transferOwner,
+  parseForwards, usage, uptimeSeconds, memUsage, cpuUsage, diskActualUsage, liveStats, totalDiskUsage, startOnBootAll, reconcileLxcProxies, getOsList, getBootLog, clearBootLog, hasKvm, transferOwner,
 };

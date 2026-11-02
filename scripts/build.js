@@ -59,6 +59,8 @@ for (const bin of ['qemu-system-x86_64', 'cloud-localds', 'qemu-img', 'wget', 'o
     warnings.push(`${bin} is missing. VM create/start will not work.`);
   }
 }
+const lxcAvailable = hasBin('lxc-create') && hasBin('lxc-info') && hasBin('mkfs.ext4') && hasBin('resize2fs');
+console.log(`       ${lxcAvailable ? 'ok  ' : 'optional'}  LXC container tools ${lxcAvailable ? 'available' : 'not installed (KVM remains available)'}`);
 
 // 4. noVNC (graphical console)
 const novncDir = path.join(config.root, 'public/vendor/novnc/core');

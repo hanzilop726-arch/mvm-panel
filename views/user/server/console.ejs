@@ -491,6 +491,8 @@
               <span id="connState" class="pill <%= vm.status === 'running' ? 'pill-yellow' : 'pill-gray' %>" style="font-size:10px;padding:2px 7px">
                 <%= vm.status === 'running' ? 'connecting...' : 'offline' %>
               </span>
+              <button class="btn btn-sm" onclick="reconnectActiveSession()" title="Reconnect the active SSH session" style="font-size:11px;padding:3px 8px">Reconnect</button>
+              <button class="btn btn-sm" onclick="copyTerminalSelection()" title="Copy selected terminal text" style="font-size:11px;padding:3px 8px">Copy selection</button>
               <button class="btn btn-sm btn-primary" onclick="addNewSession()" title="New SSH Session" style="font-size:11px;padding:3px 8px">+ New Session</button>
               <button class="btn btn-sm" onclick="clearTerm()" style="font-size:11px;padding:3px 8px">Clear</button>
               <button class="btn btn-sm" onclick="sendCtrlC()" style="font-size:11px;padding:3px 8px">Ctrl+C</button>
@@ -1180,8 +1182,13 @@
   }
 
   window.reconnectActiveSession = function() {
-    if (!socket || !connected) {
+    if (!socket) {
       setupSocket();
+      return;
+    }
+    if (!connected) {
+      setState('reconnecting...', 'pill-yellow');
+      socket.connect();
       return;
     }
     setState('connecting...', 'pill-yellow');
@@ -1201,6 +1208,21 @@
         }
       } catch (_) {}
     }, 200);
+  };
+
+  window.copyTerminalSelection = async function() {
+    const s = sessions[activeSessionId];
+    const selection = s && s.term ? s.term.getSelection() : '';
+    if (!selection) {
+      VP.toast('Select terminal text before copying', 'info');
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(selection);
+      VP.toast('Terminal selection copied', 'success');
+    } catch (error) {
+      VP.toast('Could not access the clipboard. Check browser permissions.', 'error');
+    }
   };
 
   // noVNC Integration

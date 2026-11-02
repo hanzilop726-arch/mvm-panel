@@ -1,0 +1,174 @@
+<%- include('../partials/head', { title: 'Provisioning ' + (job.specifications.name || 'Server') }) %>
+<%- include('../partials/ambient') %>
+<%- include('../partials/topbar') %>
+<%- include('../partials/sidebar') %>
+<%
+const spec = job.specifications || {};
+const progressStages = [
+  { title: 'Validate configuration', threshold: 12 },
+  { title: 'Prepare operating system image', threshold: 68 },
+  { title: 'Configure resources and access', threshold: 82 },
+  { title: 'Finalize server', threshold: 100 },
+];
+%>
+<div class="main">
+  <div class="provisioning-heading mb-4">
+    <div>
+      <div class="pill pill-primary mb-2">SERVER PROVISIONING</div>
+      <h2 style="font-size:26px;margin:0">Building <%= spec.name || 'your server' %></h2>
+      <p class="muted mb-0">Keep this page open to follow the deployment stages and server specifications.</p>
+    </div>
+    <a class="btn btn-sm" href="/admin/servers">Back to servers</a>
+  </div>
+
+  <div class="provisioning-layout">
+    <section class="card provisioning-progress-card">
+      <div class="flex-between" style="gap:12px">
+        <div>
+          <div class="muted text-sm">Current stage</div>
+          <h3 id="jobStage" style="font-size:19px;margin:3px 0 0"><%= job.stage %></h3>
+        </div>
+        <span class="pill pill-yellow" id="jobStatus"><%= job.status %></span>
+      </div>
+      <p class="muted text-sm" id="jobDetail"><%= job.detail %></p>
+
+      <div class="provisioning-progress-track" role="progressbar" aria-label="Provisioning progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="<%= job.progress %>">
+        <div class="provisioning-progress-fill" id="jobProgressBar" style="width:<%= job.progress %>%"></div>
+      </div>
+      <div class="flex-between mt-2">
+        <span class="muted text-sm">Provisioning progress</span>
+        <strong class="mono" id="jobProgressValue"><%= job.progress %>%</strong>
+      </div>
+
+      <div class="provisioning-stage-list" id="jobStages">
+        <% for (const stage of progressStages) { %>
+          <div class="provisioning-stage <%= job.progress >= stage.threshold ? 'complete' : '' %>" data-threshold="<%= stage.threshold %>">
+            <span class="provisioning-stage-mark" aria-hidden="true"></span>
+            <span><%= stage.title %></span>
+          </div>
+        <% } %>
+      </div>
+
+      <div class="alert alert-error mt-3" id="jobError" style="display:<%= job.status === 'failed' ? 'block' : 'none' %>"><%= job.error %></div>
+      <div class="alert alert-success mt-3" id="jobSuccess" style="display:<%= job.status === 'completed' ? 'block' : 'none' %>">
+        Server is ready. Opening its management page…
+      </div>
+      <a class="btn btn-primary mt-3" id="openServerLink" href="<%= job.vm ? `/admin/servers/${job.vm.id}` : '#' %>" style="display:<%= job.status === 'completed' ? 'inline-flex' : 'none' %>">Open server</a>
+      <a class="btn mt-3" id="retryLink" href="/admin/servers/create" style="display:<%= job.status === 'failed' ? 'inline-flex' : 'none' %>">Return to configuration</a>
+    </section>
+
+    <aside class="card provisioning-spec-card">
+      <div class="card-title">Deployment specifications</div>
+      <div class="provisioning-spec-list">
+        <div><span>Server name</span><strong><%= spec.name || '—' %></strong></div>
+        <div><span>Runtime</span><strong><%= String(spec.virtualization || 'kvm').toUpperCase() %></strong></div>
+        <div><span>Operating system</span><strong><%= spec.os || '—' %></strong></div>
+        <div><span>CPU</span><strong><%= spec.cpus || 1 %> vCPU</strong></div>
+        <div><span>Memory</span><strong><%= spec.memory || 1024 %> MB</strong></div>
+        <div><span>Disk</span><strong><%= spec.disk || '20G' %></strong></div>
+        <div><span>SSH port</span><strong><%= spec.sshPort || 'Auto' %></strong></div>
+        <div><span>Owner</span><strong><%= spec.owner || '—' %></strong></div>
+        <% if (String(spec.virtualization || 'kvm') === 'kvm') { %>
+          <div><span>Nested LXC/LXD</span><strong><%= spec.allowNestedContainers ? 'Allowed' : 'Disabled · monitored over SSH' %></strong></div>
+        <% } %>
+      </div>
+      <p class="provisioning-security-note">Package-based nested-container detection runs periodically and depends on SSH remaining available in the guest.</p>
+    </aside>
+  </div>
+</div>
+<%- include('../partials/music') %>
+<%- include('../partials/foot') %>
+<style>
+.provisioning-heading { display:flex; align-items:center; justify-content:space-between; gap:16px; }
+.provisioning-layout { display:grid; grid-template-columns:minmax(0, 1.6fr) minmax(270px, 0.8fr); gap:18px; align-items:start; }
+.provisioning-progress-card, .provisioning-spec-card { padding:24px; }
+.provisioning-progress-track { height:11px; overflow:hidden; border:1px solid var(--surface-border); border-radius:999px; background:var(--surface-soft); }
+.provisioning-progress-fill { height:100%; min-width:0; border-radius:inherit; background:linear-gradient(90deg, var(--primary-hover), var(--primary-light)); box-shadow:0 0 18px var(--primary-glow); transition:width 550ms ease; }
+.provisioning-stage-list { display:grid; gap:14px; margin-top:26px; }
+.provisioning-stage { display:flex; align-items:center; gap:11px; color:var(--text-dim); font-size:13px; }
+.provisioning-stage-mark { width:20px; height:20px; border:1px solid var(--border); border-radius:50%; background:var(--surface-soft); }
+.provisioning-stage.complete { color:var(--text); }
+.provisioning-stage.complete .provisioning-stage-mark { border-color:var(--primary); background:var(--primary); box-shadow:inset 0 0 0 5px var(--bg-card); }
+.provisioning-stage.current .provisioning-stage-mark { border-color:var(--primary-light); box-shadow:0 0 0 4px rgba(var(--primary-rgb), 0.12); }
+.provisioning-spec-list { display:grid; gap:0; }
+.provisioning-spec-list > div { display:flex; justify-content:space-between; gap:14px; padding:11px 0; border-bottom:1px solid var(--surface-border); font-size:12px; }
+.provisioning-spec-list > div span { color:var(--text-dim); }
+.provisioning-spec-list > div strong { text-align:right; color:var(--text-primary); }
+.provisioning-security-note { margin:15px 0 0; color:var(--text-dim); font-size:11px; line-height:1.55; }
+@media (max-width:900px) { .provisioning-layout { grid-template-columns:1fr; } }
+@media (max-width:560px) { .provisioning-heading { align-items:flex-start; flex-direction:column; } .provisioning-progress-card, .provisioning-spec-card { padding:18px; } }
+@media (prefers-reduced-motion:reduce) { .provisioning-progress-fill { transition:none; } }
+</style>
+<script>
+(() => {
+  const jobId = <%- JSON.stringify(job.jobId) %>;
+  const progressBar = document.getElementById('jobProgressBar');
+  const progressTrack = document.querySelector('.provisioning-progress-track');
+  const statusEl = document.getElementById('jobStatus');
+  const stageEl = document.getElementById('jobStage');
+  const detailEl = document.getElementById('jobDetail');
+  const errorEl = document.getElementById('jobError');
+  const successEl = document.getElementById('jobSuccess');
+  const serverLink = document.getElementById('openServerLink');
+  const retryLink = document.getElementById('retryLink');
+  let polling = false;
+  let redirectTimer = null;
+
+  function renderJob(job) {
+    const progress = Math.max(0, Math.min(100, Number(job.progress) || 0));
+    progressBar.style.width = `${progress}%`;
+    progressTrack.setAttribute('aria-valuenow', String(progress));
+    document.getElementById('jobProgressValue').textContent = `${progress}%`;
+    statusEl.textContent = job.status;
+    statusEl.className = `pill ${job.status === 'failed' ? 'pill-red' : job.status === 'completed' ? 'pill-green' : 'pill-yellow'}`;
+    stageEl.textContent = job.stage || 'Provisioning';
+    detailEl.textContent = job.detail || '';
+    document.querySelectorAll('.provisioning-stage').forEach((item, index) => {
+      const threshold = Number(item.dataset.threshold);
+      item.classList.toggle('complete', progress >= threshold);
+      item.classList.toggle('current', progress < threshold && (index === 0 || progress >= Number(document.querySelectorAll('.provisioning-stage')[index - 1].dataset.threshold)));
+    });
+    if (job.status === 'failed') {
+      errorEl.textContent = job.error || 'Provisioning failed. Check panel logs or contact an administrator.';
+      errorEl.style.display = 'block';
+      retryLink.style.display = 'inline-flex';
+      return true;
+    }
+    if (job.status === 'completed' && job.vm?.id) {
+      const url = `/admin/servers/${encodeURIComponent(job.vm.id)}`;
+      serverLink.href = url;
+      serverLink.style.display = 'inline-flex';
+      successEl.style.display = 'block';
+      if (!redirectTimer) redirectTimer = setTimeout(() => { window.location.href = url; }, 2500);
+      return true;
+    }
+    return false;
+  }
+
+  async function poll() {
+    if (polling) return;
+    polling = true;
+    try {
+      const response = await fetch(`/admin/servers/create/progress/${encodeURIComponent(jobId)}/status`, { headers: { Accept: 'application/json' } });
+      const result = await response.json();
+      if (!response.ok || !result.ok) throw new Error(result.error || 'Unable to retrieve deployment progress.');
+      if (renderJob(result.job)) return;
+    } catch (error) {
+      detailEl.textContent = error.message;
+    } finally {
+      polling = false;
+    }
+    setTimeout(poll, 1200);
+  }
+
+  const initial = {
+    status: <%- JSON.stringify(job.status) %>,
+    progress: <%- JSON.stringify(job.progress) %>,
+    stage: <%- JSON.stringify(job.stage) %>,
+    detail: <%- JSON.stringify(job.detail) %>,
+    error: <%- JSON.stringify(job.error) %>,
+    vm: <%- JSON.stringify(job.vm) %>,
+  };
+  if (!renderJob(initial)) setTimeout(poll, 800);
+})();
+</script>

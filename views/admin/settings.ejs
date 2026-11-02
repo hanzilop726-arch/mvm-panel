@@ -742,14 +742,14 @@
               <div class="form-group mb-3">
                 <label>Custom Hex Color</label>
                 <div class="flex" style="gap:10px;align-items:center">
-                  <input type="color" id="arixColorPicker" value="<%= all['arix.primary'] || '#22c55e' %>" style="width:46px;height:40px;padding:2px;border:none;border-radius:8px;cursor:pointer;background:transparent" oninput="onArixColorChange(this.value)"/>
-                  <input type="text" name="arix.primary" id="arixPrimaryInput" value="<%= all['arix.primary'] || '#22c55e' %>" class="mono font-bold" style="max-width:160px;text-transform:uppercase" oninput="onArixColorChange(this.value)"/>
+                  <input type="color" id="arixColorPicker" value="<%= all['arix.primary'] || '#ef4444' %>" style="width:46px;height:40px;padding:2px;border:none;border-radius:8px;cursor:pointer;background:transparent" oninput="onArixColorChange(this.value)"/>
+                  <input type="text" name="arix.primary" id="arixPrimaryInput" value="<%= all['arix.primary'] || '#ef4444' %>" class="mono font-bold" style="max-width:160px;text-transform:uppercase" oninput="onArixColorChange(this.value)"/>
                 </div>
               </div>
 
               <label class="text-sm font-bold mb-2" style="display:block">Preset Color Palettes</label>
               <div class="flex" style="flex-wrap:wrap;gap:8px">
-                <button type="button" class="btn btn-sm" onclick="setArixColor('#22c55e')" style="background:#22c55e;color:#041006;border:none">MVM Green (#22c55e)</button>
+                <button type="button" class="btn btn-sm" onclick="setArixColor('#ef4444')" style="background:#ef4444;color:#fff;border:none">MVM Red (#ef4444)</button>
                 <button type="button" class="btn btn-sm" onclick="setArixColor('#10b981')" style="background:#10b981;color:#fff;border:none">Emerald (#10b981)</button>
                 <button type="button" class="btn btn-sm" onclick="setArixColor('#06b6d4')" style="background:#06b6d4;color:#fff;border:none">Cyan (#06b6d4)</button>
                 <button type="button" class="btn btn-sm" onclick="setArixColor('#0284c7')" style="background:#0284c7;color:#fff;border:none">Ocean (#0284c7)</button>
@@ -1452,7 +1452,7 @@ function onArixModeChange(mode) {
 }
 
 function resetArixDefaults() {
-  setArixColor('#22c55e');
+  setArixColor('#ef4444');
   document.getElementById('arixRadiusBoxSlider').value = 10;
   onArixRadiusChange('box', 10);
   document.getElementById('arixRadiusInputSlider').value = 8;

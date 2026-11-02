@@ -3,6 +3,8 @@ const authService = require('../services/authService');
 const mailService = require('../services/mailService');
 const { settings } = require('../lib/db');
 const activity = require('../services/activityService');
+const discordService = require('../services/discordService');
+const { requireAuth } = require('../middleware/auth');
 const router = express.Router();
 
 function render(res, view, vars = {}) {
@@ -116,6 +118,26 @@ router.get('/verify', async (req, res, next) => {
     return render(res, 'verify', { ok: result.ok, error: result.error });
   } catch (err) {
     next(err);
+  }
+});
+
+router.get('/auth/discord/start', requireAuth, async (req, res, next) => {
+  try {
+    const returnTo = req.query.returnTo === '/profile' ? '/profile' : '/rewards';
+    res.redirect(await discordService.createOAuthState(req.user.id, returnTo));
+  } catch (error) {
+    const returnPath = req.query.returnTo === '/profile' ? '/profile' : '/rewards';
+    res.redirect(`${returnPath}?error=${encodeURIComponent(error.message)}`);
+  }
+});
+
+router.get('/auth/discord/callback', async (req, res) => {
+  if (req.query.error) return res.redirect(`/profile?error=${encodeURIComponent('Discord authorization was cancelled')}`);
+  try {
+    const result = await discordService.linkDiscordAccount(req.query.code, req.query.state);
+    res.redirect(`${result.returnTo}?connected=1`);
+  } catch (error) {
+    res.redirect(`/profile?error=${encodeURIComponent(error.message)}`);
   }
 });
 

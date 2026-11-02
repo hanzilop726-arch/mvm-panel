@@ -7,7 +7,7 @@ else if (settings['panel.favicon_mode'] === 'url' && settings['panel.favicon_url
 if (!favicon) {
   favicon = "/mvm-mark.svg";
 }
-const arixPrimary = settings['arix.primary'] || settings['panel.accent'] || '#22c55e';
+const arixPrimary = settings['arix.primary'] || settings['panel.accent'] || '#ef4444';
 const radiusBox = settings['arix.radius_box'] || '10px';
 const radiusInput = settings['arix.radius_input'] || '8px';
 const theme = settings['arix.mode'] || settings['panel.theme'] || 'dark';
@@ -61,4 +61,4 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 </head>
-<body class="<%= navbarStyle === 'glass' ? '' : 'nav-' + navbarStyle %> <%= navbarTransparent ? 'nav-transparent' : '' %> <%= navbarBlur ? 'nav-blur' : '' %> <%= (settings['panel.bg_mode'] && settings['panel.bg_mode'] !== 'color') ? 'bg-visible' : '' %>">
+<body class="ui-<%= settings['panel.ui_style'] === 'classic' ? 'classic' : 'convoy' %> <%= navbarStyle === 'glass' ? '' : 'nav-' + navbarStyle %> <%= navbarTransparent ? 'nav-transparent' : '' %> <%= navbarBlur ? 'nav-blur' : '' %> <%= (settings['panel.bg_mode'] && settings['panel.bg_mode'] !== 'color') ? 'bg-visible' : '' %>">

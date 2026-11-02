@@ -48,6 +48,8 @@
 ### 👑 3. Admin Control Plane vs. Tenant User Panel
 - **Cluster Nodes Architecture**: Manage virtualization nodes, resource capacity, daemon ports, and guest allocations.
 - **Virtual Machines & Storage**: Deploy VMs with cloud-init images (Ubuntu, Debian, Fedora, CentOS, AlmaLinux, Rocky Linux). Manage Local Directory, LVM, and NFS storage pools.
+- **Guided VM Provisioning**: Admins choose the OS, virtualization backend, resource specifications, and basic settings in separate steps, then follow provisioning on a live progress page.
+- **Nested LXC/LXD Policy**: KVM guests can allow or disallow nested container runtimes. Disabled guests are checked over SSH about every 30 seconds and suspended when supported package managers report LXC/LXD installed. This is periodic, SSH-dependent detection—not instant or tamper-proof enforcement; inaccessible guests are retried and logged.
 - **User Management & Delegation**: Subuser access control, TOTP Two-Factor Authentication (2FA), and 1-click **Admin User Impersonation** with a floating return bar.
 - **MongoDB Management Studio**: Integrated Mongo-Express style database manager for collections, documents, and query execution.
 - **Command Palette (`Ctrl + K`)**: Universal spotlight modal for instant server search, navigation, and power dispatch.
@@ -84,12 +86,29 @@
 - **Operating System**: Linux (Ubuntu 20.04+, Debian 11+, RHEL/CentOS 9+, Fedora, Arch Linux)
 - **Node.js**: v18.0.0+ (v20+ recommended)
 - **Database**: MongoDB 5.0+ (or Docker container `mongo:latest`)
-- **Virtualization**: QEMU (`qemu-system-x86_64`, `qemu-img`)
-- **Utilities**: `cloud-image-utils` (`cloud-localds`), `wget`, `openssl`, `python3`
+- **Virtualization**: QEMU (`qemu-system-x86_64`, `qemu-img`) for KVM; optional LXC (`lxc`, `lxc-templates`) for containers
+- **Utilities**: `cloud-image-utils` (`cloud-localds`), `wget`, `openssl`, `python3`, `e2fsprogs`
 
 ---
 
 ## 🚀 Installation & Quick Start
+
+### Optional LXC and Discord rewards
+
+Install LXC on the Linux host (the automated installer includes the LXC packages):
+
+```bash
+sudo apt-get install lxc lxc-templates e2fsprogs
+sudo systemctl enable --now lxc-net
+```
+
+Configure a working DHCP/NAT bridge and make sure the panel process has the host privileges required by LXC, loop-mounted ext4 container disks, and TCP port forwarding. In **Admin → Platform Setup**, enable LXC, select the bridge, and choose which virtualization backends administrators may use. LXC disk images are size-limited; LXC containers share the host kernel and are not equivalent to KVM isolation. Use trusted host images and do not run untrusted workloads if the host's LXC isolation is not suitably hardened.
+
+To enable community rewards, create a Discord application and bot, add `/auth/discord/callback` as an OAuth2 redirect URI, enable the privileged **Server Members Intent**, and invite the bot to the target server with **Manage Server** permission. Enter the application ID, client secret, bot token, server ID, and reward limits in **Admin → Platform Setup**. A user must connect their Discord account; the default reward is granted after five linked new-member invites or one active boost. Reward provisioning requires LXC to be enabled and configured.
+
+The optional **Discord panel-control bot** can be enabled separately in **Admin → Platform Setup** using the same Discord application and bot. Invite the app with the `bot` and `applications.commands` scopes. Users connect Discord from their panel profile, then use `/vps list`, `/vps status`, `/vps start`, `/vps stop`, or `/vps restart` in the configured server. Linked panel users can control only their own VPSs; linked panel admins can control any VPS. The bot does not create/delete VPSs or change panel users/settings. The bot gateway stays online while either panel commands or Discord rewards are enabled.
+
+The standard Docker setup is QEMU-only. Running LXC from Docker requires a separately hardened, privileged host/container configuration and is not enabled by the provided compose file.
 
 ### Option 1: Automated Installer (Recommended)
 

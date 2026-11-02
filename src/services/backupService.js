@@ -24,15 +24,25 @@ async function listAll() {
 }
 
 async function createBackup(vm, { user = null, name = null, kind = 'full' } = {}) {
-  if (vmService.isRunning(vm)) {
+  const isLxc = vm.virtualization === 'lxc';
+  if (isLxc && vmService.isRunning(vm)) {
+    throw new Error('Stop the LXC container before creating a consistent backup.');
+  }
+  if (!isLxc && vmService.isRunning(vm)) {
     logger.info('[backup] VM is running; taking qemu snapshot');
   }
   const label = name || `backup-${new Date().toISOString().replace(/[:.]/g, '-')}`;
   const vmBackupDir = path.join(BACKUP_DIR, String(vm.id));
   fs.mkdirSync(vmBackupDir, { recursive: true });
-  const dest = path.join(vmBackupDir, `${label}.qcow2`);
-  const r = spawnSync('qemu-img', ['convert', '-U', '-O', 'qcow2', vm.img_file, dest], { encoding: 'utf8' });
-  if (r.status !== 0) throw new Error(r.stderr || 'Backup conversion failed');
+  const dest = path.join(vmBackupDir, `${label}.${isLxc ? 'img' : 'qcow2'}`);
+  if (isLxc) {
+    const source = path.join(vmService.vmDir(vm), 'rootfs.img');
+    const r = spawnSync('cp', ['--sparse=always', source, dest], { encoding: 'utf8' });
+    if (r.status !== 0) throw new Error(r.stderr || 'LXC backup copy failed');
+  } else {
+    const r = spawnSync('qemu-img', ['convert', '-U', '-O', 'qcow2', vm.img_file, dest], { encoding: 'utf8' });
+    if (r.status !== 0) throw new Error(r.stderr || 'Backup conversion failed');
+  }
   const size = fs.statSync(dest).size;
   const id = await getNextId('backups');
   const doc = {
@@ -42,6 +52,7 @@ async function createBackup(vm, { user = null, name = null, kind = 'full' } = {}
     file: dest,
     size,
     kind,
+    virtualization: vm.virtualization || 'kvm',
     created_at: new Date().toISOString(),
   };
   await collections.backups.insertOne(doc);
@@ -52,13 +63,17 @@ async function createBackup(vm, { user = null, name = null, kind = 'full' } = {}
 async function restoreBackup(backup, { user = null } = {}) {
   const vm = await vmService.getVm(backup.vm_id);
   if (!vm) throw new Error('VM not found');
+  if ((backup.virtualization || 'kvm') !== (vm.virtualization || 'kvm')) throw new Error('Backup virtualization type does not match this server');
   if (vmService.isRunning(vm)) {
     await vmService.stop(vm, { user, force: true });
   }
   if (!fs.existsSync(backup.file)) throw new Error('Backup file missing');
-  const tmp = vm.img_file + '.restore';
+  const target = vm.virtualization === 'lxc'
+    ? path.join(vmService.vmDir(vm), 'rootfs.img')
+    : vm.img_file;
+  const tmp = target + '.restore';
   fs.copyFileSync(backup.file, tmp);
-  fs.renameSync(tmp, vm.img_file);
+  fs.renameSync(tmp, target);
   await collections.vms.updateOne({ id: Number(vm.id) }, { $set: { updated_at: new Date().toISOString() } });
   await logActivity({ user_id: user ? user.id : null, vm_id: vm.id, event: 'backup:restore', details: { name: backup.name } });
   return true;

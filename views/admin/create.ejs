@@ -2,6 +2,13 @@
 <%- include('../partials/ambient') %>
 <%- include('../partials/topbar') %>
 <%- include('../partials/sidebar') %>
+<%
+const kvmEnabled = String(settings['vm.enable_kvm']) !== '0';
+const lxcEnabled = String(settings['vm.enable_lxc']) === '1';
+const lxcAvailable = lxcEnabled && Boolean(lxcInstalled);
+const configuredDefault = settings['vm.default_virtualization'] === 'lxc' && lxcAvailable ? 'lxc' : 'kvm';
+const selectedBackend = configuredDefault === 'kvm' && !kvmEnabled && lxcAvailable ? 'lxc' : configuredDefault;
+%>
 <div class="main">
   <div class="flex-between mb-3">
     <div>
@@ -21,40 +28,33 @@
     </a>
   </div>
 
-  <!-- Quick Template Presets -->
-  <div class="card mb-4" style="background:var(--glass);border:1px solid var(--border);padding:18px">
-    <div class="flex-between mb-2">
-      <div style="font-weight:600;font-size:14px">⚡ Quick Sizing Presets</div>
-      <span class="muted text-sm">Click a preset to auto-configure hardware resources</span>
-    </div>
-    <div class="grid grid-4" style="gap:12px">
-      <button type="button" class="preset-card" onclick="applyPreset(1, 1024, '10G', this)">
-        <div class="preset-name">⚡ Starter</div>
-        <div class="preset-spec">1 vCPU · 1024 MB RAM</div>
-        <div class="preset-disk">10 GB SSD</div>
-      </button>
-      <button type="button" class="preset-card active" onclick="applyPreset(2, 2048, '20G', this)">
-        <div class="preset-badge">Popular</div>
-        <div class="preset-name">🚀 Standard</div>
-        <div class="preset-spec">2 vCPUs · 2048 MB RAM</div>
-        <div class="preset-disk">20 GB SSD</div>
-      </button>
-      <button type="button" class="preset-card" onclick="applyPreset(4, 4096, '40G', this)">
-        <div class="preset-name">🔥 Compute / Dev</div>
-        <div class="preset-spec">4 vCPUs · 4096 MB RAM</div>
-        <div class="preset-disk">40 GB SSD</div>
-      </button>
-      <button type="button" class="preset-card" onclick="applyPreset(8, 8192, '80G', this)">
-        <div class="preset-name">💎 Powerhouse</div>
-        <div class="preset-spec">8 vCPUs · 8192 MB RAM</div>
-        <div class="preset-disk">80 GB SSD</div>
-      </button>
-    </div>
+  <div class="vm-create-stepper" aria-label="Virtual machine creation steps">
+    <div class="vm-create-step active" data-step-indicator="1"><span>01</span><div><strong>Operating system</strong><small>Runtime &amp; image</small></div></div>
+    <div class="vm-create-step" data-step-indicator="2"><span>02</span><div><strong>Specifications</strong><small>Compute &amp; storage</small></div></div>
+    <div class="vm-create-step" data-step-indicator="3"><span>03</span><div><strong>Basic configuration</strong><small>Identity &amp; access</small></div></div>
   </div>
 
   <div class="grid" style="grid-template-columns: 1fr 340px; gap: 24px; align-items: start;">
     <!-- Main Configuration Form -->
     <div style="display:flex;flex-direction:column;gap:22px">
+      <section class="vm-create-panel active" data-wizard-step="1">
+        <div class="vm-create-section-heading">
+          <span class="vm-create-section-number">01</span>
+          <div><h3>Choose your operating system</h3><p>Select the server runtime and image to install.</p></div>
+        </div>
+      <div class="card backend-choice-card" style="padding:18px 22px">
+        <div class="flex-between" style="gap:12px;flex-wrap:wrap">
+          <div class="form-group" style="margin:0">
+            <label for="fVirtualization">Server type</label>
+            <select id="fVirtualization" onchange="updateVirtualization()">
+              <option value="kvm" <%= selectedBackend === 'kvm' ? 'selected' : '' %> <%= kvmEnabled ? '' : 'disabled' %>>KVM virtual machine<%= kvmEnabled ? '' : ' — disabled by admin' %></option>
+              <option value="lxc" <%= selectedBackend === 'lxc' ? 'selected' : '' %> <%= lxcAvailable ? '' : 'disabled' %>>LXC container<%= !lxcEnabled ? ' — enable in Platform Setup' : !lxcInstalled ? ' — host tools not installed' : '' %></option>
+            </select>
+            <div class="form-hint" id="runtimeHint">Choose a KVM virtual machine or an LXC container. LXC requires admin enablement and host LXC tools.</div>
+          </div>
+          <a class="btn btn-sm" href="/admin/platform">Backend setup</a>
+        </div>
+      </div>
       
       <!-- 1. Operating System Selection -->
       <div class="card" style="padding:22px">
@@ -98,6 +98,37 @@
         </div>
       </div>
 
+        <div class="vm-wizard-actions">
+          <span class="muted text-sm">Step 1 of 3</span>
+          <button type="button" class="btn btn-primary" onclick="goToCreateStep(2)">Continue to specifications <span aria-hidden="true">→</span></button>
+        </div>
+      </section>
+
+      <section class="vm-create-panel" data-wizard-step="2">
+        <div class="vm-create-section-heading">
+          <span class="vm-create-section-number">02</span>
+          <div><h3>Set server specifications</h3><p>Choose CPU, memory, and storage resources.</p></div>
+        </div>
+        <div class="card mb-1" style="background:var(--glass);border:1px solid var(--border);padding:18px">
+          <div class="flex-between mb-2">
+            <div style="font-weight:600;font-size:14px">Quick sizing presets</div>
+            <span class="muted text-sm">Adjust the selected resources any time.</span>
+          </div>
+          <div class="grid grid-4" style="gap:12px">
+            <button type="button" class="preset-card" onclick="applyPreset(1, 1024, '10G', this)">
+              <div class="preset-name">Starter</div><div class="preset-spec">1 vCPU · 1 GB RAM</div><div class="preset-disk">10 GB disk</div>
+            </button>
+            <button type="button" class="preset-card active" onclick="applyPreset(2, 2048, '20G', this)">
+              <div class="preset-badge">Popular</div><div class="preset-name">Standard</div><div class="preset-spec">2 vCPUs · 2 GB RAM</div><div class="preset-disk">20 GB disk</div>
+            </button>
+            <button type="button" class="preset-card" onclick="applyPreset(4, 4096, '40G', this)">
+              <div class="preset-name">Compute</div><div class="preset-spec">4 vCPUs · 4 GB RAM</div><div class="preset-disk">40 GB disk</div>
+            </button>
+            <button type="button" class="preset-card" onclick="applyPreset(8, 8192, '80G', this)">
+              <div class="preset-name">Powerhouse</div><div class="preset-spec">8 vCPUs · 8 GB RAM</div><div class="preset-disk">80 GB disk</div>
+            </button>
+          </div>
+        </div>
       <!-- 2. Hardware Resources -->
       <div class="card" style="padding:22px">
         <div class="card-title" style="margin-bottom:18px;font-size:16px">2 · Hardware Sizing &amp; Resources</div>
@@ -148,10 +179,22 @@
               <button type="button" class="btn btn-sm" onclick="setDisk('80G')">80G</button>
             </div>
           </div>
-          <div class="form-hint">Format: 20G, 50G, 100G (QEMU QCOW2 dynamic storage)</div>
+          <div class="form-hint" id="diskFormatHint">Format: 20G, 50G, 100G (QEMU QCOW2 dynamic storage)</div>
         </div>
       </div>
 
+        <div class="vm-wizard-actions">
+          <button type="button" class="btn" onclick="goToCreateStep(1)">← Operating system</button>
+          <span class="muted text-sm">Step 2 of 3</span>
+          <button type="button" class="btn btn-primary" onclick="goToCreateStep(3)">Continue to configuration <span aria-hidden="true">→</span></button>
+        </div>
+      </section>
+
+      <section class="vm-create-panel" data-wizard-step="3">
+        <div class="vm-create-section-heading">
+          <span class="vm-create-section-number">03</span>
+          <div><h3>Configure server access</h3><p>Name the VM, choose its owner, and configure networking.</p></div>
+        </div>
       <!-- 3. Identity & Credentials -->
       <div class="card" style="padding:22px">
         <div class="card-title" style="margin-bottom:18px;font-size:16px">3 · Identity &amp; Credentials</div>
@@ -209,6 +252,12 @@
           <input type="datetime-local" id="fExpDate" class="form-control"/>
           <div class="form-hint">Leave blank for no expiry date</div>
         </div>
+        <div class="form-group mt-3" id="nestedContainersPolicy">
+          <label class="check" style="cursor:pointer;align-items:flex-start">
+            <input type="checkbox" id="fAllowNestedContainers" onchange="updateSummary()"/>
+            <span><strong>Allow nested LXC/LXD containers inside this VM</strong><br/><span class="form-hint">When disabled, the panel checks over SSH every 30 seconds and suspends the VM when LXD/LXC packages are detected. SSH access must remain available for this policy check.</span></span>
+          </label>
+        </div>
       </div>
 
       <!-- 4. Networking & Ports -->
@@ -223,7 +272,7 @@
           <input id="fPort" placeholder="auto (leave blank for automatic port allocation)" oninput="updateSummary()"/>
         </div>
 
-        <div class="form-group">
+        <div class="form-group" id="extraPortForwardSettings">
           <label>Additional Port Forwards</label>
           <div class="flex mb-2" style="gap:8px">
             <input id="fFwdCustom" placeholder="e.g. 8080:80, 8443:443" oninput="customFwdsChanged(this.value)"/>
@@ -243,7 +292,7 @@
             <input type="checkbox" id="fStartBoot" onchange="updateSummary()"/>
             <span>Start VM automatically when panel boots</span>
           </label>
-          <label class="check" style="cursor:pointer">
+          <label class="check" id="guiModeSetting" style="cursor:pointer">
             <input type="checkbox" id="fGui"/>
             <span>GUI Window Display (host display)</span>
           </label>
@@ -251,7 +300,7 @@
       </div>
 
       <!-- 5. Image Source -->
-      <div class="card" style="padding:22px">
+      <div class="card" id="imageSourceSettings" style="padding:22px">
         <div class="card-title" style="margin-bottom:14px;font-size:16px">5 · Image Source</div>
         
         <div class="grid grid-2 mb-3" style="gap:10px">
@@ -284,6 +333,12 @@
           <div id="imgName" class="mono text-sm mt-2" style="color:var(--accent-2)"></div>
         </div>
       </div>
+        <div class="vm-wizard-actions">
+          <button type="button" class="btn" onclick="goToCreateStep(2)">← Specifications</button>
+          <span class="muted text-sm">Step 3 of 3 · Review your deployment</span>
+          <span></span>
+        </div>
+      </section>
     </div>
 
     <!-- Live Inspector Sidebar & Launch Card -->
@@ -298,6 +353,10 @@
           <div class="flex-between">
             <span class="muted">OS &amp; Distro</span>
             <span class="font-bold" id="sumOs">Ubuntu 24.04</span>
+          </div>
+          <div class="flex-between">
+            <span class="muted">Virtualization</span>
+            <span class="font-bold" id="sumVirtualization">KVM</span>
           </div>
           <div class="flex-between">
             <span class="muted">VM Name</span>
@@ -327,17 +386,19 @@
             <span class="muted">Owner</span>
             <span id="sumOwner"><%= user.username %></span>
           </div>
+          <div class="flex-between">
+            <span class="muted">Nested containers</span>
+            <span class="mono" id="sumNestedPolicy">Disabled</span>
+          </div>
         </div>
 
         <hr class="hr" style="margin:16px 0"/>
 
-        <button class="btn btn-primary btn-block" style="padding:14px;font-size:15px;font-weight:700;letter-spacing:0.3px;display:flex;align-items:center;justify-content:center;gap:8px" id="btnCreate" onclick="createVm()">
+        <button class="btn btn-primary btn-block" style="padding:14px;font-size:15px;font-weight:700;letter-spacing:0.3px;display:none;align-items:center;justify-content:center;gap:8px" id="btnCreate" onclick="createVm()">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg>
           Deploy Virtual Machine
         </button>
-        <div id="createProgress" class="muted text-sm text-center mt-2" style="display:none">
-          Deploying VM and preparing storage...
-        </div>
+        <div class="muted text-sm text-center mt-2" id="createHint">Finish the three steps to review and deploy.</div>
       </div>
     </div>
   </div>
@@ -346,6 +407,86 @@
 <%- include('../partials/foot') %>
 
 <style>
+.vm-create-stepper {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0 0 20px;
+}
+.vm-create-step {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  padding: 14px 16px;
+  border: 1px solid var(--surface-border);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--surface-raised) 92%, transparent);
+  color: var(--text-dim);
+  transition: border-color 180ms ease, background 180ms ease, color 180ms ease;
+}
+.vm-create-step > span {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 36px;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  color: var(--text-muted);
+  font: 700 12px var(--font-mono);
+}
+.vm-create-step strong,
+.vm-create-step small { display: block; }
+.vm-create-step strong { color: var(--text); font-size: 13px; }
+.vm-create-step small { margin-top: 2px; color: var(--text-dim); font-size: 11px; }
+.vm-create-step.active,
+.vm-create-step.complete {
+  border-color: rgba(var(--primary-rgb), 0.42);
+  background: linear-gradient(115deg, rgba(var(--primary-rgb), 0.11), var(--surface-raised) 78%);
+}
+.vm-create-step.active > span,
+.vm-create-step.complete > span {
+  border-color: rgba(var(--primary-rgb), 0.45);
+  background: rgba(var(--primary-rgb), 0.16);
+  color: var(--primary-light);
+}
+.vm-create-panel { display: none; }
+.vm-create-panel.active { display: flex; flex-direction: column; gap: 18px; animation: vm-step-in 240ms ease both; }
+.vm-create-section-heading { display: flex; align-items: center; gap: 13px; padding: 4px 2px 2px; }
+.vm-create-section-number {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  flex: 0 0 44px;
+  place-items: center;
+  border: 1px solid rgba(var(--primary-rgb), 0.28);
+  border-radius: 14px;
+  background: rgba(var(--primary-rgb), 0.1);
+  color: var(--primary-light);
+  font: 700 13px var(--font-mono);
+}
+.vm-create-section-heading h3 { margin: 0; color: var(--text-primary); font-size: 18px; }
+.vm-create-section-heading p { margin: 3px 0 0; color: var(--text-dim); font-size: 12px; }
+.vm-wizard-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 2px; }
+.summary-policy { margin-top: 12px; padding: 9px 11px; border: 1px solid var(--surface-border); border-radius: 10px; color: var(--text-muted); font-size: 11px; }
+@keyframes vm-step-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+@media (max-width: 900px) {
+  .vm-create-stepper { gap: 7px; }
+  .vm-create-step { padding: 10px; gap: 8px; }
+  .vm-create-step small { display: none; }
+}
+@media (max-width: 560px) {
+  .vm-create-stepper { grid-template-columns: 1fr; }
+  .vm-create-step { padding: 9px 12px; }
+  .vm-create-step > span { width: 30px; height: 30px; flex-basis: 30px; }
+  .vm-wizard-actions { flex-wrap: wrap; }
+  .vm-wizard-actions > span:nth-child(2) { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .vm-create-step, .vm-create-panel.active { animation: none; transition: none; }
+}
 .preset-card {
   background: var(--glass);
   border: 1px solid var(--border);
@@ -490,24 +631,65 @@ function selectOsCard(input) {
   }
 
   currentDistroUser = input.dataset.username || 'ubuntu';
-  document.getElementById('btnDistroUser').textContent = currentDistroUser;
+  const isLxc = document.getElementById('fVirtualization').value === 'lxc';
+  document.getElementById('fUser').value = isLxc ? 'root' : currentDistroUser;
+  document.getElementById('btnDistroUser').textContent = isLxc ? 'root' : currentDistroUser;
   updateSummary();
 }
 
 function filterOs(category, btn) {
   document.querySelectorAll('.os-filter-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
+  const isLxc = document.getElementById('fVirtualization').value === 'lxc';
   const cards = document.querySelectorAll('.os-select-card');
   cards.forEach(card => {
     const d = card.dataset.distro || '';
+    const supported = !isLxc || d.includes('ubuntu') || d.includes('debian');
     if (category === 'all') {
-      card.style.display = 'flex';
+      card.style.display = supported ? 'flex' : 'none';
     } else if (category === 'rhel') {
-      card.style.display = (d.includes('centos') || d.includes('alma') || d.includes('rocky') || d.includes('fedora')) ? 'flex' : 'none';
+      card.style.display = supported && (d.includes('centos') || d.includes('alma') || d.includes('rocky') || d.includes('fedora')) ? 'flex' : 'none';
     } else {
-      card.style.display = d.includes(category) ? 'flex' : 'none';
+      card.style.display = supported && d.includes(category) ? 'flex' : 'none';
     }
   });
+  const selected = document.querySelector('input[name="os"]:checked');
+  if (selected && selected.closest('.os-select-card').style.display === 'none') {
+    const firstVisible = [...cards].find(card => card.style.display !== 'none');
+    if (firstVisible) {
+      const radio = firstVisible.querySelector('input[name="os"]');
+      radio.checked = true;
+      selectOsCard(radio);
+    }
+  }
+}
+
+function updateVirtualization() {
+  const isLxc = document.getElementById('fVirtualization').value === 'lxc';
+  const runtimeHint = document.getElementById('runtimeHint');
+  if (runtimeHint) runtimeHint.textContent = isLxc
+    ? 'LXC is a lightweight container; only supported Ubuntu and Debian images are available.'
+    : 'KVM creates a full QEMU virtual machine.';
+  document.getElementById('diskFormatHint').textContent = isLxc
+    ? 'Ext4 disk image with the configured size limit.'
+    : 'Format: 20G, 50G, 100G (QEMU QCOW2 dynamic storage)';
+  document.getElementById('extraPortForwardSettings').style.display = isLxc ? 'none' : '';
+  document.getElementById('guiModeSetting').style.display = isLxc ? 'none' : '';
+  document.getElementById('imageSourceSettings').style.display = isLxc ? 'none' : '';
+  document.getElementById('nestedContainersPolicy').style.display = isLxc ? 'none' : '';
+  document.getElementById('fUser').readOnly = isLxc;
+  document.getElementById('fUser').value = isLxc ? 'root' : (document.querySelector('input[name="os"]:checked')?.dataset.username || 'ubuntu');
+  document.getElementById('btnDistroUser').disabled = isLxc;
+  document.getElementById('btnDistroUser').textContent = isLxc ? 'root' : (document.querySelector('input[name="os"]:checked')?.dataset.username || 'ubuntu');
+  document.querySelectorAll('.os-filter-btn').forEach(button => {
+    if (isLxc && !['all', 'ubuntu', 'debian'].includes(button.textContent.trim().toLowerCase())) {
+      button.style.display = 'none';
+    } else {
+      button.style.display = '';
+    }
+  });
+  const allButton = document.querySelector('.os-filter-btn');
+  filterOs('all', allButton);
 }
 
 function syncCpu(v) {
@@ -586,6 +768,7 @@ function updateSummary() {
   const owner = ownerSel ? ownerSel.options[ownerSel.selectedIndex].text.split('·')[0].trim() : '';
 
   document.getElementById('sumOs').textContent = osName;
+  document.getElementById('sumVirtualization').textContent = document.getElementById('fVirtualization').value.toUpperCase();
   document.getElementById('sumName').textContent = slugify(name);
   document.getElementById('sumCpu').textContent = cpus + (cpus === '1' ? ' Core' : ' Cores');
   document.getElementById('sumMem').textContent = mem + ' MB (' + (parseInt(mem,10)/1024).toFixed(1) + ' GB)';
@@ -593,9 +776,40 @@ function updateSummary() {
   document.getElementById('sumUser').textContent = user;
   document.getElementById('sumPort').textContent = port ? port : 'Auto';
   document.getElementById('sumOwner').textContent = owner;
+  const nestedPolicy = document.getElementById('sumNestedPolicy');
+  if (nestedPolicy) {
+    nestedPolicy.textContent = document.getElementById('fVirtualization').value === 'lxc'
+      ? 'Not applicable'
+      : (document.getElementById('fAllowNestedContainers').checked ? 'Allowed' : 'Disabled · SSH policy scan');
+  }
+}
+
+let activeCreateStep = 1;
+function goToCreateStep(step) {
+  const nextStep = Math.max(1, Math.min(3, Number(step) || 1));
+  if (nextStep === 2 && !document.querySelector('input[name="os"]:checked')) {
+    VP.toast('Select an operating system first', 'warning');
+    return;
+  }
+  activeCreateStep = nextStep;
+  document.querySelectorAll('[data-wizard-step]').forEach((panel) => {
+    panel.classList.toggle('active', Number(panel.dataset.wizardStep) === nextStep);
+  });
+  document.querySelectorAll('[data-step-indicator]').forEach((indicator) => {
+    const indicatorStep = Number(indicator.dataset.stepIndicator);
+    indicator.classList.toggle('active', indicatorStep === nextStep);
+    indicator.classList.toggle('complete', indicatorStep < nextStep);
+  });
+  const deployButton = document.getElementById('btnCreate');
+  const createHint = document.getElementById('createHint');
+  deployButton.style.display = nextStep === 3 ? 'flex' : 'none';
+  createHint.textContent = nextStep === 3 ? 'Review the configuration, then launch the deployment.' : 'Finish the three steps to review and deploy.';
+  if (nextStep === 3) updateSummary();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 async function createVm() {
+  if (activeCreateStep !== 3) return VP.toast('Complete the configuration steps before deploying', 'warning');
   const nameInput = document.getElementById('fName');
   const rawName = nameInput.value.trim();
   const slug = slugify(rawName);
@@ -606,12 +820,11 @@ async function createVm() {
   }
 
   const btn = document.getElementById('btnCreate');
-  const prog = document.getElementById('createProgress');
   btn.disabled = true;
   btn.innerHTML = '<svg class="spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><circle cx="12" cy="12" r="10" stroke-opacity="0.25"/><path d="M12 2a10 10 0 0 1 10 10"/></svg> Creating Server...';
-  prog.style.display = 'block';
 
   const fd = new FormData();
+  fd.append('virtualization', document.getElementById('fVirtualization').value);
   fd.append('os', (document.querySelector('input[name="os"]:checked') || {}).value);
   fd.append('name', slug);
   fd.append('hostname', document.getElementById('fHost').value || slug);
@@ -622,7 +835,7 @@ async function createVm() {
   fd.append('disk_size', (document.getElementById('fDisk').value || '20G').toUpperCase());
   fd.append('ssh_port', document.getElementById('fPort').value || '');
   
-  const rawFwds = document.getElementById('fFwdCustom').value || '';
+  const rawFwds = document.getElementById('fVirtualization').value === 'lxc' ? '' : (document.getElementById('fFwdCustom').value || '');
   const parsedFwds = rawFwds.split(',').map(s=>s.trim()).filter(Boolean).map(p=>{
     const[h,g]=p.split(':');
     return { host: parseInt(h,10), guest: parseInt(g,10) };
@@ -632,6 +845,7 @@ async function createVm() {
   fd.append('start_on_boot', document.getElementById('fStartBoot').checked ? '1' : '0');
   fd.append('gui_mode', document.getElementById('fGui').checked ? '1' : '0');
   fd.append('owner_id', document.getElementById('fOwner').value);
+  fd.append('allow_nested_containers', document.getElementById('fAllowNestedContainers').checked ? '1' : '0');
 
   const descVal = document.getElementById('fDescription')?.value?.trim();
   if (descVal) fd.append('description', descVal);
@@ -647,13 +861,12 @@ async function createVm() {
     const r = await fetch('/admin/servers/create', { method: 'POST', body: fd });
     const d = await r.json();
     if (!r.ok) throw new Error(d.error || 'Failed to create server');
-    VP.toast('VM Created successfully! SSH Port: ' + d.vm.ssh_port, 'success');
-    setTimeout(() => { location.href = '/admin/servers/' + d.vm.id; }, 900);
+    if (!d.redirect) throw new Error('The deployment job could not be started.');
+    location.href = d.redirect;
   } catch (e) {
     VP.toast(e.message, 'error');
     btn.disabled = false;
     btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg> Deploy Virtual Machine';
-    prog.style.display = 'none';
   }
 }
 
@@ -663,6 +876,7 @@ const targetOwner = urlParams.get('owner_id');
 if (targetOwner && document.getElementById('fOwner')) {
   document.getElementById('fOwner').value = targetOwner;
 }
+updateVirtualization();
 genPassword();
 updateSummary();
 </script>

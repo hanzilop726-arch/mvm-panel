@@ -13,15 +13,15 @@
     return;
   }
 
-  const particles = Array.from({ length: window.innerWidth < 768 ? 42 : 76 }, () => ({
+  const particles = Array.from({ length: window.innerWidth < 768 ? 54 : 96 }, () => ({
     x: Math.random(),
     y: Math.random(),
-    radius: 0.7 + Math.random() * 1.5,
+    radius: 0.9 + Math.random() * 1.8,
     speedX: (Math.random() - 0.5) * 0.018,
     speedY: (Math.random() - 0.5) * 0.018,
-    opacity: 0.18 + Math.random() * 0.42
+    opacity: 0.28 + Math.random() * 0.45
   }));
-  const primary = getComputedStyle(document.documentElement).getPropertyValue('--primary').trim() || '#22c55e';
+  const primary = getComputedStyle(document.documentElement).getPropertyValue('--primary').trim() || '#ef4444';
   let width = 0;
   let height = 0;
   let frame = 0;
@@ -80,12 +80,12 @@
         const dx = (particle.x - other.x) * width;
         const dy = (particle.y - other.y) * height;
         const distance = Math.sqrt(dx * dx + dy * dy);
-        if (distance > 105) continue;
+        if (distance > 120) continue;
 
         context.beginPath();
         context.moveTo(x, y);
         context.lineTo(other.x * width, other.y * height);
-        context.globalAlpha = (1 - distance / 105) * 0.13;
+        context.globalAlpha = (1 - distance / 120) * 0.18;
         context.strokeStyle = primary;
         context.lineWidth = 0.7;
         context.stroke();

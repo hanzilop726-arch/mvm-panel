@@ -36,7 +36,7 @@
         <% } %>
       </h2>
       <div class="muted text-sm mono" style="margin-top:4px">
-        <code><%= vmObj.uuid %></code> · <span class="muted"><%= vmObj.os_type || 'linux' %></span>
+        <code><%= vmObj.uuid %></code> · <span class="muted"><%= vmObj.os_type || 'linux' %> · <%= vmObj.virtualization === 'lxc' ? 'LXC container' : 'KVM virtual machine' %></span>
       </div>
     </div>
 
@@ -58,6 +58,11 @@
       </a>
     </div>
   </div>
+  <% if (vmObj.suspension_reason) { %>
+    <div class="card mb-3" style="border-color:rgba(245,158,11,.45);color:#fbbf24">
+      <strong>Suspension reason:</strong> <%= vmObj.suspension_reason %>
+    </div>
+  <% } %>
 
   <!-- Pterodactyl-Style Sub-Navigation Tabs matching navigation.blade.php -->
   <div style="margin-bottom:20px;border-bottom:1px solid var(--border);display:flex;gap:4px;overflow-x:auto;padding-bottom:1px">
@@ -396,6 +401,21 @@
           <%= vmObj.suspended ? 'Unsuspend Server' : 'Suspend Server' %>
         </button>
       </div>
+      <% if (vmObj.virtualization !== 'lxc') { %>
+        <div class="card">
+          <div class="card-title mb-2" style="font-size:16px">Nested LXC/LXD Policy</div>
+          <p class="muted text-sm mb-3">
+            When disabled, the panel checks running guests over SSH about every 30 seconds and suspends them if it detects LXC/LXD packages. Detection is not instant or tamper-proof.
+          </p>
+          <label class="flex" style="gap:10px;align-items:center;margin-bottom:14px">
+            <input id="allowNestedContainers" type="checkbox" <%= vmObj.allow_nested_containers !== false ? 'checked' : '' %>>
+            <span>Allow nested LXC/LXD inside this VM</span>
+          </label>
+          <button type="button" class="btn btn-primary" onclick="saveNestedContainerPolicy()" style="width:100%">
+            Save nested-container policy
+          </button>
+        </div>
+      <% } %>
     </div>
   </div>
 
@@ -538,6 +558,20 @@ async function toggleSuspension(suspend) {
       body: { action: doSuspend ? 'suspend' : 'unsuspend' }
     });
     VP.toast(doSuspend ? 'Server suspended' : 'Server unsuspended', 'success');
+    setTimeout(() => location.reload(), 600);
+  } catch (e) {
+    VP.toast(e.message, 'error');
+  }
+}
+
+async function saveNestedContainerPolicy() {
+  const allow = document.getElementById('allowNestedContainers').checked;
+  try {
+    await VP.api('/admin/servers/<%= vmObj.id %>/manage/nested-containers', {
+      method: 'POST',
+      body: { allow_nested_containers: allow }
+    });
+    VP.toast('Nested-container policy saved', 'success');
     setTimeout(() => location.reload(), 600);
   } catch (e) {
     VP.toast(e.message, 'error');

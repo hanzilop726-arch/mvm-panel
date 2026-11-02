@@ -1,0 +1,108 @@
+<%- include('../partials/head', { title: 'Discord Rewards' }) %>
+<%- include('../partials/ambient') %>
+<%- include('../partials/topbar') %>
+<%- include('../partials/sidebar') %>
+<div class="main">
+  <div class="flex-between mb-3" style="gap:16px;flex-wrap:wrap">
+    <div>
+      <div class="pill pill-primary mb-2">COMMUNITY REWARDS</div>
+      <h2 style="font-size:24px;margin:0">Discord VPS Rewards</h2>
+      <p class="muted mb-0">Connect Discord, invite verified new members, or boost the community server to unlock a free VPS.</p>
+    </div>
+    <a class="btn" href="/dashboard">Back to dashboard</a>
+  </div>
+
+  <% if (connected) { %><div class="alert alert-success">Discord account connected successfully.</div><% } %>
+  <% if (error) { %><div class="alert alert-error"><%= error %></div><% } %>
+  <% if (rewardStatus.error) { %><div class="alert alert-error"><%= rewardStatus.error %></div><% } %>
+
+  <% if (!rewardStatus.enabled) { %>
+    <div class="card">
+      <div class="card-title">Rewards are unavailable</div>
+      <p class="muted mb-0">The administrator has disabled Discord VPS rewards.</p>
+    </div>
+  <% } else { %>
+    <div class="grid grid-2" style="align-items:start">
+      <div class="card">
+        <div class="card-title">Your Discord account</div>
+        <% if (!rewardStatus.configured) { %>
+          <div class="alert alert-info">The administrator still needs to finish the Discord integration setup.</div>
+        <% } else if (rewardStatus.linked) { %>
+          <div class="flex-between" style="gap:12px">
+            <div>
+              <div style="font-weight:700"><%= rewardStatus.discordUsername || 'Connected account' %></div>
+              <div class="muted text-sm">Discord account connected</div>
+            </div>
+            <span class="pill pill-green">Connected</span>
+          </div>
+        <% } else { %>
+          <p class="muted">Link your Discord account to verify your invites and active server boost.</p>
+          <a class="btn btn-primary" href="/auth/discord/start">Connect Discord</a>
+        <% } %>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Reward progress</div>
+        <div class="grid grid-2 mb-3">
+          <div class="stat">
+            <div><div class="stat-value"><%= rewardStatus.invites %> / <%= rewardStatus.requiredInvites %></div><div class="stat-label">Verified invites</div></div>
+          </div>
+          <div class="stat">
+            <div><div class="stat-value"><%= rewardStatus.boosting ? 'Active' : 'Not active' %></div><div class="stat-label">Server boost</div></div>
+          </div>
+        </div>
+        <p class="muted text-sm"><%= rewardStatus.reason %></p>
+        <% if (rewardStatus.linked && rewardStatus.eligible && rewardStatus.activeCount < rewardStatus.maxActive) { %>
+          <button type="button" class="btn btn-primary" id="claimReward" onclick="claimReward()">Claim free VPS</button>
+        <% } %>
+        <div class="alert alert-success mt-3" id="claimResult" style="display:none">
+          <strong id="rewardVmName"></strong> is ready.
+          <div class="mt-2">SSH username: <code>root</code></div>
+          <div>Password: <code id="rewardVmPassword"></code></div>
+          <a id="rewardVmLink" class="btn btn-sm mt-2">Open VPS</a>
+          <p class="muted text-sm mt-2 mb-0">Save this password now. The panel will not show it again on this page.</p>
+        </div>
+        <div class="muted text-sm mt-2">Reward servers: <%= rewardStatus.activeCount %> / <%= rewardStatus.maxActive %></div>
+      </div>
+    </div>
+
+    <div class="card mt-3">
+      <div class="card-title">Reward VPS specifications</div>
+      <div class="grid grid-3">
+        <div><div class="muted text-sm">CPU</div><strong><%= settings['discord.reward_cpus'] || 1 %> vCPU</strong></div>
+        <div><div class="muted text-sm">Memory</div><strong><%= settings['discord.reward_memory'] || 1024 %> MB</strong></div>
+        <div><div class="muted text-sm">Disk</div><strong><%= settings['discord.reward_disk'] || '10G' %></strong></div>
+      </div>
+      <p class="muted text-sm mt-2 mb-0">Eligibility: <%= rewardStatus.requiredInvites %> verified new-member invites or an active server boost.</p>
+    </div>
+  <% } %>
+</div>
+<%- include('../partials/music') %>
+<%- include('../partials/foot') %>
+<script>
+async function claimReward() {
+  const button = document.getElementById('claimReward');
+  button.disabled = true;
+  button.textContent = 'Provisioning...';
+  try {
+    const response = await fetch('/rewards/vps', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{}',
+    });
+    const result = await response.json();
+    if (!response.ok || !result.ok) throw new Error(result.error || 'Could not create the reward VPS');
+    document.getElementById('rewardVmName').textContent = result.vm.name;
+    document.getElementById('rewardVmPassword').textContent = result.credentials.password;
+    const link = document.getElementById('rewardVmLink');
+    link.href = result.redirect;
+    document.getElementById('claimResult').style.display = '';
+    button.style.display = 'none';
+  } catch (error) {
+    button.disabled = false;
+    button.textContent = 'Claim free VPS';
+    if (window.VP?.toast) VP.toast(error.message, 'error');
+    else alert(error.message);
+  }
+}
+</script>
