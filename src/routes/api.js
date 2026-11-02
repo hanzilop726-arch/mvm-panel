@@ -217,11 +217,11 @@ router.delete('/vms/:id', loadVm, async (req, res) => {
 });
 router.patch('/vms/:id', loadVm, json, async (req, res) => {
   try { res.json({ ok: true, vm: await vmService.update(req.vm, req.body, req.user) }); }
-  catch (e) { res.status(500).json({ error: e.message }); }
+  catch (e) { res.status(e.statusCode || 500).json({ error: e.message }); }
 });
 router.post('/vms/:id/resize', loadVm, json, async (req, res) => {
   try { res.json({ ok: true, vm: await vmService.resizeDisk(req.vm, req.body.disk_size, req.user) }); }
-  catch (e) { res.status(500).json({ error: e.message }); }
+  catch (e) { res.status(e.statusCode || 500).json({ error: e.message }); }
 });
 
 // ---------- Files (via VM Agent API, SSH fallback) ----------

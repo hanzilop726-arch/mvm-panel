@@ -638,6 +638,20 @@ async function remove(vm, user) {
 }
 
 async function update(vm, data, user) {
+  const isAdmin = user && (user.role === 'admin' || Number(user.root_admin) === 1);
+  if (!isAdmin) {
+    const userEditableFields = new Set([
+      'name', 'hostname', 'username', 'password', 'gui_mode',
+      'port_forwards', 'start_on_boot', 'startup_command', 'notes',
+    ]);
+    const forbiddenField = Object.keys(data || {}).find((field) => !userEditableFields.has(field));
+    if (forbiddenField) {
+      const error = new Error('Only an administrator can change server resources or administrative settings.');
+      error.statusCode = 403;
+      throw error;
+    }
+  }
+
   const fields = [
     'name', 'hostname', 'username', 'password', 'memory', 'cpus', 'disk_size',
     'gui_mode', 'port_forwards', 'start_on_boot', 'startup_command', 'notes',
@@ -675,6 +689,11 @@ async function transferOwner(vm, newOwnerId, actor) {
 }
 
 async function resizeDisk(vm, newSize, user) {
+  if (!user || (user.role !== 'admin' && Number(user.root_admin) !== 1)) {
+    const error = new Error('Only an administrator can resize server disks.');
+    error.statusCode = 403;
+    throw error;
+  }
   if (isRunning(vm)) throw new Error('Cannot resize disk while VM is running. Stop the VM first.');
   if (!/^[0-9]+[GM]$/i.test(newSize)) throw new Error('Disk size must be like 50G or 512M');
   if (vm.virtualization === 'lxc') {
