@@ -125,6 +125,14 @@ function parseDiskSize(value) {
   };
 }
 
+async function setMemoryLimit(name, memory) {
+  if (!Number.isInteger(memory) || memory < 128 || memory > 1048576) {
+    throw new Error('LXD memory must be between 128 and 1048576 MB.');
+  }
+  await execute(['config', 'set', name, 'limits.memory.enforce', 'hard']);
+  await execute(['config', 'set', name, 'limits.memory', `${memory}MB`]);
+}
+
 function ipFromInstance(instance) {
   const networks = instance?.state?.network || {};
   for (const network of Object.values(networks)) {
@@ -212,7 +220,8 @@ async function create(vm) {
   try {
     await execute(['init', image, name, '--storage', poolName()], { timeout: 900000 });
     created = true;
-    await execute(['config', 'set', name, 'limits.memory', `${Math.max(128, Number(vm.memory) || 1024)}MB`]);
+    const memory = Number(vm.memory);
+    await setMemoryLimit(name, memory);
     await execute(['config', 'set', name, 'limits.cpu', String(Math.max(1, Number(vm.cpus) || 1))]);
     await execute(['config', 'set', name, 'security.nesting', 'true']);
     await execute(['config', 'device', 'set', name, 'root', 'size', disk.lxdValue]);
@@ -255,9 +264,8 @@ async function updateResources(vm, data) {
   const cpus = data.cpus === undefined ? Number(vm.cpus) : Number(data.cpus);
   const memory = data.memory === undefined ? Number(vm.memory) : Number(data.memory);
   if (!Number.isInteger(cpus) || cpus < 1 || cpus > 256) throw new Error('LXD CPU count must be between 1 and 256.');
-  if (!Number.isInteger(memory) || memory < 128 || memory > 1048576) throw new Error('LXD memory must be between 128 and 1048576 MB.');
   if (data.disk_size !== undefined) await resizeDisk(vm, data.disk_size);
-  await execute(['config', 'set', containerName(vm), 'limits.memory', `${memory}MB`]);
+  await setMemoryLimit(containerName(vm), memory);
   await execute(['config', 'set', containerName(vm), 'limits.cpu', String(cpus)]);
 }
 
