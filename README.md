@@ -50,6 +50,7 @@
 - **Virtual Machines & Storage**: Deploy VMs with cloud-init images (Ubuntu, Debian, Fedora, CentOS, AlmaLinux, Rocky Linux). Manage Local Directory, LVM, and NFS storage pools.
 - **Guided VM Provisioning**: Admins choose the OS, virtualization backend, resource specifications, and basic settings in separate steps, then follow provisioning on a live progress page.
 - **Nested LXC/LXD Policy**: KVM guests can allow or disallow nested container runtimes. Disabled guests are checked over SSH about every 30 seconds and suspended when supported package managers report LXC/LXD installed. This is periodic, SSH-dependent detection—not instant or tamper-proof enforcement; inaccessible guests are retried and logged.
+- **Guest Add-ons**: VM owners can install SSHX, Tailscale, and Docker from the server's Add-ons tab. SSHX creates a public bearer-link to a terminal session; Tailscale requires the owner to complete the returned authorization link; Docker installation uses `apt` on Debian/Ubuntu and does not automatically make LXC guests privileged.
 - **User Management & Delegation**: Subuser access control, TOTP Two-Factor Authentication (2FA), and 1-click **Admin User Impersonation** with a floating return bar.
 - **MongoDB Management Studio**: Integrated Mongo-Express style database manager for collections, documents, and query execution.
 - **Command Palette (`Ctrl + K`)**: Universal spotlight modal for instant server search, navigation, and power dispatch.
@@ -95,14 +96,14 @@
 
 ### Optional LXC and Discord rewards
 
-Install LXC on the Linux host (the automated installer includes the LXC packages):
+New containers use the LXD driver by default, matching the `lxc init` workflow used by `pinggy.py`. Install and initialize LXD on the host, create a storage pool (default name `default`), and configure the default profile with a root disk and a DHCP-enabled network. The panel service account must be allowed to use the local LXD daemon. Follow the [official LXD installation and initialization guide](https://documentation.ubuntu.com/lxd/latest/).
 
 ```bash
-sudo apt-get install lxc lxc-templates e2fsprogs
-sudo systemctl enable --now lxc-net
+# After installing LXD, run its interactive initializer as an administrator:
+sudo lxd init
 ```
 
-Configure a working DHCP/NAT bridge and make sure the panel process has the host privileges required by LXC, loop-mounted ext4 container disks, and TCP port forwarding. In **Admin → Platform Setup**, enable LXC, select the bridge, and choose which virtualization backends administrators may use. LXC disk images are size-limited; LXC containers share the host kernel and are not equivalent to KVM isolation. Use trusted host images and do not run untrusted workloads if the host's LXC isolation is not suitably hardened.
+In **Admin → Platform Setup**, enable LXC and set the driver and storage pool name. The panel checks daemon access, pool existence, and the default profile before enabling LXC creation. Access to the local LXD daemon is effectively host-root access; grant it only to a trusted panel service. New LXD containers enable `security.nesting` for nested Docker use, but remain unprivileged; the panel does not copy the bot's privileged/unconfined settings. Existing records without an `lxc_driver` marker continue to use the classic LXC backend and its configured bridge. LXD/LXC containers share the host kernel and are not equivalent to KVM isolation.
 
 To enable community rewards, create a Discord application and bot, add `/auth/discord/callback` as an OAuth2 redirect URI, enable the privileged **Server Members Intent**, and invite the bot to the target server with **Manage Server** permission. Enter the application ID, client secret, bot token, server ID, and reward limits in **Admin → Platform Setup**. A user must connect their Discord account; the default reward is granted after five linked new-member invites or one active boost. Reward provisioning requires LXC to be enabled and configured.
 

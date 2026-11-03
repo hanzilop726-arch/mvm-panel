@@ -35,11 +35,16 @@ const nodeService = require('../services/nodeService');
 function platformVars(all = settings.all()) {
   const defaultRedirectUri = discordService.redirectUri();
   const rewardOsList = vmService.getOsList().filter((os) => ['ubuntu', 'debian'].includes(String(os[1] || '').toLowerCase()));
+  const virtualization = vmService.usage();
+  const lxcDriver = String(all['vm.lxc_driver'] || 'lxd');
   return {
     all,
     defaultRedirectUri,
     rewardOsList,
-    lxcInstalled: vmService.usage().lxc,
+    lxcInstalled: virtualization.lxc,
+    lxcDriver,
+    lxdReady: virtualization.lxd,
+    legacyLxcInstalled: virtualization.legacyLxc,
     clientSecretConfigured: Boolean(all['discord.client_secret']),
     botTokenConfigured: Boolean(all['discord.bot_token']),
   };
@@ -70,6 +75,8 @@ router.post('/admin/platform', express.urlencoded({ extended: true }), async (re
   const enableLxc = req.body['vm.enable_lxc'] === '1';
   const defaultBackend = String(req.body['vm.default_virtualization'] || '');
   const panelUiStyle = String(req.body['panel.ui_style'] || '');
+  const lxcDriver = String(req.body['vm.lxc_driver'] || '');
+  const lxdStoragePool = String(req.body['vm.lxd_storage_pool'] || 'default').trim();
   const bridge = String(req.body['vm.lxc_bridge'] || 'lxcbr0').trim();
   const rewardsEnabled = req.body['discord.rewards_enabled'] === '1';
   const panelControlEnabled = req.body['discord.panel_control_enabled'] === '1';
@@ -90,6 +97,8 @@ router.post('/admin/platform', express.urlencoded({ extended: true }), async (re
 
   if (!enableKvm && !enableLxc) return fail('At least one virtualization backend must remain enabled.');
   if (!['convoy', 'classic'].includes(panelUiStyle)) return fail('Choose a supported panel interface style.');
+  if (!['lxd', 'legacy'].includes(lxcDriver)) return fail('Choose a supported LXC container driver.');
+  if (!/^[a-zA-Z0-9_.-]{1,63}$/.test(lxdStoragePool)) return fail('LXD storage pool name must contain 1-63 letters, numbers, dots, underscores, or hyphens.');
   if (!['kvm', 'lxc'].includes(defaultBackend) || (defaultBackend === 'kvm' && !enableKvm) || (defaultBackend === 'lxc' && !enableLxc)) {
     return fail('Choose an enabled default virtualization backend.');
   }
@@ -116,6 +125,8 @@ router.post('/admin/platform', express.urlencoded({ extended: true }), async (re
       'vm.enable_kvm': enableKvm ? '1' : '0',
       'vm.enable_lxc': enableLxc ? '1' : '0',
       'vm.default_virtualization': defaultBackend,
+      'vm.lxc_driver': lxcDriver,
+      'vm.lxd_storage_pool': lxdStoragePool,
       'vm.lxc_bridge': bridge,
       'discord.rewards_enabled': rewardsEnabled ? '1' : '0',
       'discord.panel_control_enabled': panelControlEnabled ? '1' : '0',
@@ -137,7 +148,7 @@ router.post('/admin/platform', express.urlencoded({ extended: true }), async (re
     await activity.logActivity({
       user_id: req.user.id,
       event: 'admin:platform_settings_update',
-      details: { enableKvm, enableLxc, defaultBackend, rewardsEnabled, panelControlEnabled },
+      details: { enableKvm, enableLxc, defaultBackend, lxcDriver, lxdStoragePool, rewardsEnabled, panelControlEnabled },
     });
     return res.redirect('/admin/platform?updated=1');
   } catch (error) {

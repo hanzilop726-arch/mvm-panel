@@ -26,7 +26,7 @@
 
     <div class="card mb-3">
       <div class="card-title">Virtualization backends</div>
-      <p class="muted text-sm">KVM stays enabled by default. LXC containers share the host kernel and require LXC packages and a configured Linux bridge.</p>
+      <p class="muted text-sm">KVM stays enabled by default. New LXC containers use LXD; existing containers without a driver marker continue to use classic LXC. Access to the local LXD daemon is effectively host-root access, so grant it only to a trusted panel service.</p>
       <div class="grid grid-2">
         <label class="flex" style="gap:10px;align-items:center">
           <input type="checkbox" name="vm.enable_kvm" value="1" <%= String(all['vm.enable_kvm']) !== '0' ? 'checked' : '' %>/>
@@ -46,12 +46,31 @@
           </select>
         </div>
         <div class="form-group">
-          <label>LXC network bridge</label>
-          <input name="vm.lxc_bridge" value="<%= all['vm.lxc_bridge'] || 'lxcbr0' %>" maxlength="15" required/>
-          <div class="muted text-sm mt-1">The bridge must already exist and provide DHCP/NAT for containers.</div>
+          <label>Driver for new LXC containers</label>
+          <select name="vm.lxc_driver">
+            <option value="lxd" <%= lxcDriver === 'lxd' ? 'selected' : '' %>>LXD (recommended; matches the bot workflow)</option>
+            <option value="legacy" <%= lxcDriver === 'legacy' ? 'selected' : '' %>>Classic LXC (lxc-create)</option>
+          </select>
+          <div class="muted text-sm mt-1">Changing this affects new containers only. Existing containers keep their recorded driver.</div>
         </div>
       </div>
-      <div class="muted text-sm">Detected LXC tools: <strong><%= lxcInstalled ? 'available' : 'not installed' %></strong></div>
+      <div class="grid grid-2 mt-3">
+        <div class="form-group">
+          <label>LXD storage pool name</label>
+          <input name="vm.lxd_storage_pool" value="<%= all['vm.lxd_storage_pool'] || 'default' %>" maxlength="63" pattern="[A-Za-z0-9_.-]{1,63}" required/>
+          <div class="muted text-sm mt-1">Must match an already-created LXD storage pool.</div>
+        </div>
+        <div class="form-group">
+          <label>Classic LXC network bridge</label>
+          <input name="vm.lxc_bridge" value="<%= all['vm.lxc_bridge'] || 'lxcbr0' %>" maxlength="15" required/>
+          <div class="muted text-sm mt-1">Used only by legacy classic LXC containers.</div>
+        </div>
+      </div>
+      <div class="muted text-sm">Selected driver readiness: <strong><%= lxcInstalled ? 'ready' : 'not ready' %></strong></div>
+      <div class="muted text-sm">LXD: <strong><%= lxdReady ? 'daemon, storage pool, and default profile ready' : 'not ready' %></strong> · Classic LXC tools: <strong><%= legacyLxcInstalled ? 'available' : 'not installed' %></strong></div>
+      <% if (lxcDriver === 'lxd' && !lxdReady) { %>
+        <div class="alert alert-warning mt-2">Configure and initialize LXD with the selected storage pool and a default profile that provides a root disk and DHCP network. LXC creation stays disabled until LXD is ready.</div>
+      <% } %>
     </div>
 
     <div class="card mb-3">

@@ -1,0 +1,110 @@
+<%- include('../../partials/head', { title: vm.name + ' - Add-ons' }) %>
+<%- include('../../partials/ambient') %>
+<%- include('../../partials/topbar') %>
+<%- include('../../partials/sidebar') %>
+<div class="main">
+  <div class="flex-between mb-3">
+    <div>
+      <h2 style="font-size:22px">Add-ons · <%= vm.name %></h2>
+      <p class="muted text-sm">Install selected tools inside this server over SSH. The server must be running.</p>
+    </div>
+    <a class="btn btn-sm" href="/servers/<%= vm.id %>">Back</a>
+  </div>
+  <%- include('_tabs') %>
+
+  <div class="grid grid-3" style="gap:18px;align-items:stretch">
+    <section class="card">
+      <div class="card-title">SSHX</div>
+      <p class="muted text-sm">Install SSHX and create a browser terminal link for your VM.</p>
+      <div class="alert alert-warning">Anyone with this link may be able to access the terminal session. Share it only with people you trust.</div>
+      <div class="form-hint mb-2">SSHX is downloaded from sshx.io and its installer runs inside this VM.</div>
+      <div class="muted text-sm mb-3" id="sshxStatus">Checking status…</div>
+      <div class="flex" style="gap:8px;flex-wrap:wrap">
+        <button class="btn btn-primary" onclick="runAddon('sshx','install')">Install &amp; create link</button>
+        <button class="btn" onclick="runAddon('sshx','stop')">Stop SSHX session</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-title">Tailscale</div>
+      <p class="muted text-sm">Install Tailscale, start its service, then authorize this device in your tailnet.</p>
+      <div class="form-hint mb-2">The official Tailscale installer is downloaded and run inside this VM.</div>
+      <div class="muted text-sm mb-3" id="tailscaleStatus">Checking status…</div>
+      <button class="btn btn-primary" onclick="runAddon('tailscale','install')">Install &amp; get authorization link</button>
+      <p class="form-hint mt-2">Complete authorization using the link returned after installation.</p>
+    </section>
+
+    <section class="card">
+      <div class="card-title">Docker</div>
+      <p class="muted text-sm">Install and start Docker Engine using the guest's Debian/Ubuntu package manager.</p>
+      <div class="muted text-sm mb-3" id="dockerStatus">Checking status…</div>
+      <button class="btn btn-primary" onclick="runAddon('docker','install')">Install Docker</button>
+      <p class="form-hint mt-2">Container guests may need host-side nesting/cgroup support. The panel will not enable privileged-container settings automatically.</p>
+    </section>
+  </div>
+  <section class="card mt-3" id="addonResultCard" style="display:none">
+    <div class="card-title">Add-on result</div>
+    <div id="addonLink" class="mb-2"></div>
+    <pre id="addonOutput" style="white-space:pre-wrap;overflow-wrap:anywhere;max-height:360px;overflow:auto"></pre>
+  </section>
+</div>
+<%- include('../../partials/music') %>
+<%- include('../../partials/foot') %>
+<script>
+const addonBase = '/servers/<%= vm.id %>/addons';
+function showAddonResult(result) {
+  document.getElementById('addonResultCard').style.display = '';
+  document.getElementById('addonOutput').textContent = result.output || result.message || '';
+  const linkBox = document.getElementById('addonLink');
+  linkBox.replaceChildren();
+  const linkValue = result.link || result.authUrl;
+  if (linkValue) {
+    const link = new URL(linkValue);
+    if (link.protocol === 'https:' && ['sshx.io', 'login.tailscale.com'].includes(link.hostname)) {
+      const anchor = document.createElement('a');
+      anchor.href = link.href;
+      anchor.target = '_blank';
+      anchor.rel = 'noopener noreferrer';
+      anchor.textContent = result.link ? 'Open SSHX session (treat this link as a secret)' : 'Open Tailscale authorization';
+      linkBox.appendChild(anchor);
+      const copy = document.createElement('button');
+      copy.className = 'btn btn-sm';
+      copy.style.marginLeft = '10px';
+      copy.textContent = 'Copy link';
+      copy.onclick = () => navigator.clipboard.writeText(link.href).then(() => VP.toast('Link copied', 'success')).catch((error) => VP.toast(error.message, 'error'));
+      linkBox.appendChild(copy);
+    }
+  }
+}
+async function refreshAddonStatus() {
+  try {
+    const { addons } = await VP.api(addonBase + '/status');
+    document.getElementById('sshxStatus').textContent = addons.sshx.running ? 'Installed · session running' : addons.sshx.installed ? 'Installed · no active session' : 'Not installed';
+    document.getElementById('tailscaleStatus').textContent = addons.tailscale.installed ? 'Installed' : 'Not installed';
+    document.getElementById('dockerStatus').textContent = addons.docker.installed ? 'Installed' : 'Not installed';
+  } catch (error) {
+    for (const id of ['sshxStatus', 'tailscaleStatus', 'dockerStatus']) document.getElementById(id).textContent = error.message;
+  }
+}
+async function runAddon(addon, action) {
+  if (addon === 'sshx' && action === 'install') {
+    const ok = await VP.confirmDialog('SSHX creates a terminal link that can expose this VM shell to anyone holding the link. Treat it as a password and stop the session when finished.', { title: 'Create a public SSHX session?' });
+    if (!ok) return;
+  }
+  if (addon === 'docker') {
+    const ok = await VP.confirmDialog('Install Docker Engine and start its service inside this server?', { title: 'Install Docker?' });
+    if (!ok) return;
+  }
+  try {
+    VP.toast('Running add-on operation…', 'info');
+    const result = await VP.api(addonBase, { method: 'POST', body: { addon, action } });
+    showAddonResult(result);
+    VP.toast('Add-on operation completed', 'success');
+    await refreshAddonStatus();
+  } catch (error) {
+    showAddonResult({ output: error.message });
+    VP.toast(error.message, 'error');
+  }
+}
+refreshAddonStatus();
+</script>

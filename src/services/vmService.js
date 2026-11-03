@@ -10,9 +10,14 @@ const { collections, getNextId, settings } = require('../lib/db');
 const logger = require('../lib/logger');
 const { logActivity } = require('./activityService');
 const lxcService = require('./lxcService');
+const lxdService = require('./lxdService');
 
 const VM_DIR = config.vmDir;
 const RUNNING_PREFIX = 'qemu-system';
+
+function containerService(vm) {
+  return vm && vm.lxc_driver === 'lxd' ? lxdService : lxcService;
+}
 
 function ensureDirs() {
   for (const d of [VM_DIR, config.uploads.backup]) {
@@ -221,7 +226,7 @@ function pidOf(vm) {
 }
 
 function isRunning(vm) {
-  if (vm && vm.virtualization === 'lxc') return lxcService.isRunning(vm);
+  if (vm && vm.virtualization === 'lxc') return containerService(vm).isRunning(vm);
   const pid = pidOf(vm);
   if (!pid) return false;
   try {
@@ -404,6 +409,15 @@ async function create({ user, data, onProgress = async () => {} }) {
   if (!['kvm', 'lxc'].includes(virtualization)) throw new Error('Unsupported virtualization backend');
   if (virtualization === 'kvm' && String(settings.get('vm.enable_kvm')) !== '1') throw new Error('KVM provisioning is disabled by the administrator');
   if (virtualization === 'lxc' && String(settings.get('vm.enable_lxc')) !== '1') throw new Error('LXC provisioning is disabled by the administrator');
+  const lxcDriver = virtualization === 'lxc' ? String(settings.get('vm.lxc_driver') || 'lxd') : null;
+  if (virtualization === 'lxc' && !['lxd', 'legacy'].includes(lxcDriver)) throw new Error('Unsupported LXC container driver');
+  if (virtualization === 'lxc' && lxcDriver === 'lxd') {
+    const ready = lxdService.readiness();
+    if (!ready.ready) throw new Error(`LXD is not ready: ${ready.error} Configure LXD in Admin → Platform Setup.`);
+  }
+  if (virtualization === 'lxc' && lxcDriver === 'legacy' && !lxcService.isInstalled()) {
+    throw new Error('Classic LXC tools are not installed. Install lxc-create and lxc-templates on the host.');
+  }
   const vmName = String(data.name || '').trim().replace(/\s+/g, '-');
   if (!vmName || !/^[a-zA-Z0-9_-]+$/.test(vmName)) {
     throw new Error('VM name can only contain letters, numbers, hyphens, underscores');
@@ -443,6 +457,7 @@ async function create({ user, data, onProgress = async () => {} }) {
     owner_id: user.id,
     name: vmName,
     virtualization,
+    lxc_driver: lxcDriver || undefined,
     allow_nested_containers: allowNestedContainers,
     reward_type: data.reward_type === 'discord' ? 'discord' : null,
     container_name: virtualization === 'lxc' ? `mvm-${id}-${vmUuid.slice(0, 8)}` : undefined,
@@ -479,7 +494,7 @@ async function create({ user, data, onProgress = async () => {} }) {
   if (virtualization === 'lxc') {
     try {
       await onProgress({ progress: 28, stage: 'Preparing LXC container', detail: 'Creating the root filesystem and applying resource limits.' });
-      await lxcService.create(vm);
+      await containerService(vm).create(vm);
       await setDbStatus(id, 'stopped');
       await logActivity({ user_id: user.id, vm_id: id, event: 'vm:create', details: { name: vmName, port: sshPort, virtualization } });
       await onProgress({ progress: 96, stage: 'Finalizing server', detail: 'Container is ready; saving deployment metadata.' });
@@ -539,10 +554,10 @@ async function start(vm, { user = null } = {}) {
   if (vm.suspended) throw new Error('This server is suspended. An administrator must unsuspend it before it can be started.');
   if (vm.virtualization === 'lxc') {
     if (isRunning(vm)) {
-      await lxcService.start(vm);
+      await containerService(vm).start(vm);
       return { ok: true, message: 'already running' };
     }
-    await lxcService.start(vm);
+    await containerService(vm).start(vm);
     await setDbStatus(vm.id, 'running');
     await logActivity({ user_id: user ? user.id : null, vm_id: vm.id, event: 'vm:start' });
     return { ok: true };
@@ -579,7 +594,7 @@ async function start(vm, { user = null } = {}) {
 
 async function stop(vm, { user = null, force = false } = {}) {
   if (vm.virtualization === 'lxc') {
-    await lxcService.stop(vm, { force });
+    await containerService(vm).stop(vm, { force });
     await setDbStatus(vm.id, 'stopped');
     await logActivity({ user_id: user ? user.id : null, vm_id: vm.id, event: force ? 'vm:kill' : 'vm:stop' });
     return { ok: true };
@@ -615,7 +630,7 @@ async function restart(vm, user) {
 
 async function remove(vm, user) {
   if (isRunning(vm)) await stop(vm, { user, force: true });
-  if (vm.virtualization === 'lxc') await lxcService.destroy(vm);
+  if (vm.virtualization === 'lxc') await containerService(vm).destroy(vm);
   else {
     try {
       fs.rmSync(vmDir(vm), { recursive: true, force: true });
@@ -669,7 +684,7 @@ async function update(vm, data, user) {
     }
   }
   if (vm.virtualization === 'lxc' && ['memory', 'cpus', 'disk_size'].some((field) => data[field] !== undefined)) {
-    await lxcService.updateResources(vm, data);
+    await containerService(vm).updateResources(vm, data);
   }
   if (Object.keys($set).length) {
     $set.updated_at = now();
@@ -698,7 +713,7 @@ async function resizeDisk(vm, newSize, user) {
   if (isRunning(vm)) throw new Error('Cannot resize disk while VM is running. Stop the VM first.');
   if (!/^[0-9]+[GM]$/i.test(newSize)) throw new Error('Disk size must be like 50G or 512M');
   if (vm.virtualization === 'lxc') {
-    await lxcService.resizeDisk(vm, newSize);
+    await containerService(vm).resizeDisk(vm, newSize);
     await collections.vms.updateOne({ id: Number(vm.id) }, { $set: { disk_size: newSize.toUpperCase(), updated_at: now() } });
     await logActivity({ user_id: user ? user.id : null, vm_id: vm.id, event: 'vm:resize', details: { newSize } });
     return getVm(vm.id);
@@ -711,9 +726,14 @@ async function resizeDisk(vm, newSize, user) {
 }
 
 function usage() {
+  const driver = String(settings.get('vm.lxc_driver') || 'lxd');
+  const lxdReady = lxdService.isReady();
+  const legacyLxcAvailable = lxcService.isInstalled();
   return {
     qemu: hasBin('qemu-system-x86_64'),
-    lxc: lxcService.isInstalled(),
+    lxc: driver === 'lxd' ? lxdReady : legacyLxcAvailable,
+    lxd: lxdReady,
+    legacyLxc: legacyLxcAvailable,
     cloudLocalds: hasBin('cloud-localds'),
     wget: hasBin('wget'),
     kvm: hasBin('qemu-kvm') || hasBin('/usr/libexec/qemu-kvm'),
@@ -755,7 +775,10 @@ async function startOnBootAll() {
 
 async function reconcileLxcProxies() {
   const vms = (await collections.vms.find({ virtualization: 'lxc' }).toArray()).map(serializeVm);
-  await lxcService.reconcile(vms);
+  await Promise.all([
+    lxcService.reconcile(vms.filter((vm) => vm.lxc_driver !== 'lxd')),
+    lxdService.reconcile(vms.filter((vm) => vm.lxc_driver === 'lxd')),
+  ]);
 }
 
 function cpuUsage(vm) {

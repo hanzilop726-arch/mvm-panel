@@ -12,6 +12,7 @@ const activity = require('../services/activityService');
 const aiLogService = require('../services/aiLogService');
 const resourceService = require('../services/resourceService');
 const discordService = require('../services/discordService');
+const addonService = require('../services/addonService');
 const { requireAuth } = require('../middleware/auth');
 const { uploadAvatar } = require('../middleware/upload');
 const router = express.Router();
@@ -25,6 +26,12 @@ function render(res, view, vars = {}) {
     settings: settings.all(),
     ...vars,
   });
+}
+
+function requireVmOwnerOrAdmin(req, res, next) {
+  const isAdmin = req.user.role === 'admin' || Boolean(req.user.root_admin);
+  if (isAdmin || Number(req.vm.owner_id) === Number(req.user.id)) return next();
+  return res.status(403).json({ ok: false, error: 'Only the server owner or an administrator can manage add-ons.' });
 }
 
 async function myVms(user) {
@@ -239,6 +246,35 @@ router.get('/servers/:id/startup', loadVm, (req, res) => {
 
 router.get('/servers/:id/settings', loadVm, (req, res) => {
   render(res, 'server/settings', { vm: req.vm });
+});
+
+router.get('/servers/:id/addons', loadVm, requireVmOwnerOrAdmin, (req, res) => {
+  render(res, 'server/addons', { vm: req.vm });
+});
+
+router.get('/servers/:id/addons/status', loadVm, requireVmOwnerOrAdmin, async (req, res) => {
+  try {
+    const addons = await addonService.status(req.vm);
+    res.json({ ok: true, addons });
+  } catch (error) {
+    res.status(error.statusCode || 500).json({ ok: false, error: error.message });
+  }
+});
+
+router.post('/servers/:id/addons', loadVm, requireVmOwnerOrAdmin, express.json(), async (req, res) => {
+  try {
+    const addon = String(req.body?.addon || '').toLowerCase();
+    const action = String(req.body?.action || 'install').toLowerCase();
+    const result = await addonService.runAddon(req.vm, addon, action);
+    await activity.logActivity({
+      user_id: req.user.id,
+      vm_id: req.vm.id,
+      event: `vm:addon_${addon}_${action}`,
+    });
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    res.status(error.statusCode || 500).json({ ok: false, error: error.message });
+  }
 });
 
 router.get('/servers/:id/subusers', loadVm, async (req, res, next) => {

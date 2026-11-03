@@ -116,6 +116,8 @@ const defaultSettings = {
   'vm.enable_lxc': '0',
   'vm.default_virtualization': 'kvm',
   'vm.lxc_bridge': 'lxcbr0',
+  'vm.lxc_driver': 'lxd',
+  'vm.lxd_storage_pool': 'default',
   'discord.rewards_enabled': '0',
   'discord.panel_control_enabled': '0',
   'discord.client_id': '',
