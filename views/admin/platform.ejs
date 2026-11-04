@@ -67,9 +67,12 @@
         </div>
       </div>
       <div class="muted text-sm">Selected driver readiness: <strong><%= lxcInstalled ? 'ready' : 'not ready' %></strong></div>
-      <div class="muted text-sm">LXD: <strong><%= lxdReady ? 'daemon, storage pool, and default profile ready' : 'not ready' %></strong> · Classic LXC tools: <strong><%= legacyLxcInstalled ? 'available' : 'not installed' %></strong></div>
+      <div class="muted text-sm">LXD: <strong><%= lxdReady ? 'daemon, storage pool, and default profile ready' : 'not ready' %></strong> · Classic LXC tools: <strong><%= legacyLxcInstalled ? 'available' : 'missing' %></strong> · Classic LXC setup: <strong><%= legacyLxcReady ? 'ready' : 'not ready' %></strong></div>
       <% if (lxcDriver === 'lxd' && !lxdReady) { %>
         <div class="alert alert-warning mt-2">Configure and initialize LXD with the selected storage pool and a default profile that provides a root disk and DHCP network. LXC creation stays disabled until LXD is ready.</div>
+      <% } %>
+      <% if (lxcDriver === 'legacy' && !legacyLxcReady) { %>
+        <div class="alert alert-warning mt-2"><%= legacyLxcError %> Classic LXC requires the LXC utilities, CPU and memory cgroup controllers, and a writable container directory. Verify the panel service account's PATH, host cgroups, and container directory permissions.</div>
       <% } %>
     </div>
 

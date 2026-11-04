@@ -45,6 +45,8 @@ function platformVars(all = settings.all()) {
     lxcDriver,
     lxdReady: virtualization.lxd,
     legacyLxcInstalled: virtualization.legacyLxc,
+    legacyLxcReady: virtualization.legacyLxcReady,
+    legacyLxcError: virtualization.legacyLxcError,
     clientSecretConfigured: Boolean(all['discord.client_secret']),
     botTokenConfigured: Boolean(all['discord.bot_token']),
   };
@@ -617,7 +619,13 @@ router.get('/admin/servers/create/progress/:jobId/status', async (req, res, next
 router.get('/admin/servers/create', async (req, res, next) => {
   try {
     const users = await collections.users.find({}, { projection: { id: 1, username: 1, email: 1 } }).sort({ username: 1 }).toArray();
-    render(res, 'create', { osList: vmService.getOsList(), users, lxcInstalled: vmService.usage().lxc });
+    const usage = vmService.usage();
+    render(res, 'create', {
+      osList: vmService.getOsList(),
+      users,
+      lxcInstalled: usage.lxc,
+      lxcReadinessError: usage.lxc ? '' : (usage.legacyLxcError || 'LXD is not ready. Check Admin → Platform Setup.'),
+    });
   } catch (err) {
     next(err);
   }

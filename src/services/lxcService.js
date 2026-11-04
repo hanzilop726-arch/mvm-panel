@@ -6,9 +6,15 @@ const config = require('../lib/config');
 const { settings } = require('../lib/db');
 
 const proxies = new Map();
+const REQUIRED_BINARIES = [
+  'lxc-create', 'lxc-info', 'lxc-start', 'lxc-stop', 'lxc-attach', 'lxc-destroy',
+  'truncate', 'mkfs.ext4', 'mount', 'cp', 'umount', 'resize2fs',
+];
 const execFile = (file, args, options = {}) => new Promise((resolve, reject) => {
   const { input, ...spawnOptions } = options;
-  const child = spawn(file, args, { stdio: ['pipe', 'pipe', 'pipe'], ...spawnOptions });
+  const executable = findExecutable(file);
+  if (!executable) return reject(new Error(`${file} is not available in the panel service PATH.`));
+  const child = spawn(executable, args, { stdio: ['pipe', 'pipe', 'pipe'], ...spawnOptions });
   let stdout = '';
   let stderr = '';
   child.stdout.on('data', (data) => { stdout += data; });
@@ -30,12 +36,66 @@ function baseArgs(vm) {
   return ['-P', config.vmDir, '-n', containerName(vm)];
 }
 
+function findExecutable(command) {
+  const fs = require('fs');
+  const path = require('path');
+  const searchPath = [...String(process.env.PATH || '').split(path.delimiter), '/usr/local/sbin', '/usr/local/bin', '/usr/sbin', '/usr/bin', '/sbin', '/bin'];
+  for (const directory of new Set(searchPath.filter(Boolean))) {
+    const candidate = path.join(directory, command);
+    try {
+      fs.accessSync(candidate, fs.constants.X_OK);
+      return candidate;
+    } catch (_) {}
+  }
+  return null;
+}
+
 function isInstalled() {
-  return require('child_process').spawnSync('which', ['lxc-create'], { stdio: 'ignore' }).status === 0;
+  return REQUIRED_BINARIES.every((binary) => findExecutable(binary));
+}
+
+function cgroupVersion() {
+  const fs = require('fs');
+  if (fs.existsSync('/sys/fs/cgroup/cgroup.controllers')) {
+    const controllers = fs.readFileSync('/sys/fs/cgroup/cgroup.controllers', 'utf8').trim().split(/\s+/);
+    if (controllers.includes('memory') && controllers.includes('cpu')) return 2;
+    return null;
+  }
+  try {
+    const controllers = fs.readFileSync('/proc/cgroups', 'utf8');
+    const enabled = new Set(controllers.split('\n')
+      .filter((line) => !line.startsWith('#'))
+      .map((line) => line.trim().split(/\s+/))
+      .filter((fields) => fields[3] === '1')
+      .map((fields) => fields[0]));
+    if (enabled.has('memory') && enabled.has('cpu')) return 1;
+  } catch (_) {}
+  return null;
+}
+
+function readiness() {
+  const missingBinaries = REQUIRED_BINARIES.filter((binary) => !findExecutable(binary));
+  if (missingBinaries.length) {
+    return { ready: false, error: `Missing required classic LXC tools: ${missingBinaries.join(', ')}.` };
+  }
+  const version = cgroupVersion();
+  if (!version) return { ready: false, error: 'The host must enable both CPU and memory cgroup controllers (cgroup v1 or v2).' };
+  try {
+    require('fs').accessSync(config.vmDir, require('fs').constants.W_OK);
+  } catch (_) {
+    return { ready: false, error: `The panel service cannot write to the LXC directory: ${config.vmDir}.` };
+  }
+  return { ready: true, error: '', cgroupVersion: version };
+}
+
+function isReady() {
+  return readiness().ready;
 }
 
 function isRunning(vm) {
-  const result = require('child_process').spawnSync('lxc-info', [...baseArgs(vm), '-sH'], { encoding: 'utf8' });
+  const executable = findExecutable('lxc-info');
+  if (!executable) return false;
+  const result = require('child_process').spawnSync(executable, [...baseArgs(vm), '-sH'], { encoding: 'utf8' });
   return result.status === 0 && result.stdout.trim() === 'RUNNING';
 }
 
@@ -46,6 +106,38 @@ function osRelease(vm) {
     return { distro, release };
   }
   throw new Error(`LXC provisioning is not configured for ${vm.os_type || 'this operating system'}`);
+}
+
+function resourceLimitConfig(memory, cpus, version) {
+  if (!Number.isInteger(memory) || memory < 128 || memory > 1048576) {
+    throw new Error('LXC memory must be between 128 and 1048576 MB.');
+  }
+  if (!Number.isInteger(cpus) || cpus < 1 || cpus > 256) {
+    throw new Error('LXC CPU count must be between 1 and 256.');
+  }
+  if (version === 2) {
+    return [
+      `lxc.cgroup2.memory.max = ${memory * 1024 * 1024}`,
+      `lxc.cgroup2.cpu.max = ${cpus * 100000} 100000`,
+    ];
+  }
+  return [
+    `lxc.cgroup.memory.limit_in_bytes = ${memory * 1024 * 1024}`,
+    `lxc.cgroup.cpu.cfs_period_us = 100000`,
+    `lxc.cgroup.cpu.cfs_quota_us = ${cpus * 100000}`,
+  ];
+}
+
+function setResourceLimitConfig(contents, memory, cpus, version) {
+  const keys = [
+    'lxc.cgroup.memory.limit_in_bytes', 'lxc.cgroup2.memory.max',
+    'lxc.cgroup.cpu.cfs_period_us', 'lxc.cgroup.cpu.cfs_quota_us', 'lxc.cgroup2.cpu.max',
+  ];
+  const withoutOldLimits = contents.split(/\r?\n/).filter((line) => {
+    const key = line.split('=')[0].trim();
+    return !keys.includes(key);
+  }).join('\n').trimEnd();
+  return `${withoutOldLimits}\n${resourceLimitConfig(memory, cpus, version).join('\n')}\n`;
 }
 
 async function createRootfsImage(vm, directory) {
@@ -78,7 +170,8 @@ async function createRootfsImage(vm, directory) {
 }
 
 async function create(vm) {
-  if (!isInstalled()) throw new Error('LXC is not installed. Install lxc and lxc-templates on the host.');
+  const ready = readiness();
+  if (!ready.ready) throw new Error(`Classic LXC is not ready: ${ready.error}`);
   const { distro, release } = osRelease(vm);
   const name = containerName(vm);
   const directory = path.join(config.vmDir, name);
@@ -98,10 +191,12 @@ async function create(vm) {
       'lxc.net.0.type = veth',
       `lxc.net.0.link = ${bridge}`,
       'lxc.net.0.flags = up',
-      `lxc.cgroup2.memory.max = ${Math.max(128, Number(vm.memory) || 1024) * 1024 * 1024}`,
-      `lxc.cgroup2.cpu.max = ${Math.max(1, Number(vm.cpus) || 1) * 100000} 100000`,
       '',
     ].join('\n'));
+    fs.writeFileSync(
+      path.join(directory, 'config'),
+      setResourceLimitConfig(fs.readFileSync(path.join(directory, 'config'), 'utf8'), Number(vm.memory), Number(vm.cpus), ready.cgroupVersion)
+    );
     await start(vm);
     await waitForIp(vm);
     await execFile('lxc-attach', [...baseArgs(vm), '--clear-env', '--', 'sh', '-lc',
@@ -137,21 +232,12 @@ async function updateResources(vm, data) {
   if (isRunning(vm)) throw new Error('Stop the LXC container before changing its resources.');
   const cpus = data.cpus === undefined ? Number(vm.cpus) : Number(data.cpus);
   const memory = data.memory === undefined ? Number(vm.memory) : Number(data.memory);
-  if (!Number.isInteger(cpus) || cpus < 1 || cpus > 256) throw new Error('LXC CPU count must be between 1 and 256');
-  if (!Number.isInteger(memory) || memory < 128 || memory > 1048576) throw new Error('LXC memory must be between 128 and 1048576 MB');
+  const ready = readiness();
+  if (!ready.ready) throw new Error(`Classic LXC is not ready: ${ready.error}`);
   if (data.disk_size !== undefined) await resizeDisk(vm, data.disk_size);
   const configPath = path.join(config.vmDir, containerName(vm), 'config');
-  let contents = fs.readFileSync(configPath, 'utf8');
-  const values = {
-    'lxc.cgroup2.memory.max': String(memory * 1024 * 1024),
-    'lxc.cgroup2.cpu.max': `${cpus * 100000} 100000`,
-  };
-  for (const [key, value] of Object.entries(values)) {
-    const line = `${key} = ${value}`;
-    const pattern = new RegExp(`^${key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*=.*$`, 'm');
-    contents = pattern.test(contents) ? contents.replace(pattern, line) : `${contents}\n${line}`;
-  }
-  fs.writeFileSync(configPath, contents);
+  const contents = fs.readFileSync(configPath, 'utf8');
+  fs.writeFileSync(configPath, setResourceLimitConfig(contents, memory, cpus, ready.cgroupVersion));
 }
 
 async function start(vm) {
@@ -248,4 +334,7 @@ async function reconcile(vms) {
   }
 }
 
-module.exports = { create, start, stop, destroy, status, reconcile, isInstalled, isRunning, resizeDisk, updateResources };
+module.exports = {
+  create, start, stop, destroy, status, reconcile, isInstalled, isReady, readiness,
+  isRunning, resizeDisk, updateResources,
+};

@@ -50,7 +50,7 @@ const selectedBackend = configuredDefault === 'kvm' && !kvmEnabled && lxcAvailab
               <option value="kvm" <%= selectedBackend === 'kvm' ? 'selected' : '' %> <%= kvmEnabled ? '' : 'disabled' %>>KVM virtual machine<%= kvmEnabled ? '' : ' — disabled by admin' %></option>
               <option value="lxc" <%= selectedBackend === 'lxc' ? 'selected' : '' %> <%= lxcAvailable ? '' : 'disabled' %>>LXC container<%= !lxcEnabled ? ' — enable in Platform Setup' : !lxcInstalled ? ' — selected driver is not ready' : '' %></option>
             </select>
-            <div class="form-hint" id="runtimeHint">Choose a KVM virtual machine or an LXC container. New LXC containers use the configured LXD/classic driver; host setup must be ready.</div>
+            <div class="form-hint" id="runtimeHint">Choose a KVM virtual machine or an LXC container. New LXC containers use the configured LXD/classic driver; host setup must be ready.<% if (!lxcInstalled && lxcReadinessError) { %> <%= lxcReadinessError %><% } %></div>
           </div>
           <a class="btn btn-sm" href="/admin/platform">Backend setup</a>
         </div>

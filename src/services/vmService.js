@@ -415,8 +415,9 @@ async function create({ user, data, onProgress = async () => {} }) {
     const ready = lxdService.readiness();
     if (!ready.ready) throw new Error(`LXD is not ready: ${ready.error} Configure LXD in Admin → Platform Setup.`);
   }
-  if (virtualization === 'lxc' && lxcDriver === 'legacy' && !lxcService.isInstalled()) {
-    throw new Error('Classic LXC tools are not installed. Install lxc-create and lxc-templates on the host.');
+  if (virtualization === 'lxc' && lxcDriver === 'legacy') {
+    const ready = lxcService.readiness();
+    if (!ready.ready) throw new Error(`Classic LXC is not ready: ${ready.error}`);
   }
   const vmName = String(data.name || '').trim().replace(/\s+/g, '-');
   if (!vmName || !/^[a-zA-Z0-9_-]+$/.test(vmName)) {
@@ -729,11 +730,14 @@ function usage() {
   const driver = String(settings.get('vm.lxc_driver') || 'lxd');
   const lxdReady = lxdService.isReady();
   const legacyLxcAvailable = lxcService.isInstalled();
+  const legacyLxcReadiness = lxcService.readiness();
   return {
     qemu: hasBin('qemu-system-x86_64'),
-    lxc: driver === 'lxd' ? lxdReady : legacyLxcAvailable,
+    lxc: driver === 'lxd' ? lxdReady : legacyLxcReadiness.ready,
     lxd: lxdReady,
     legacyLxc: legacyLxcAvailable,
+    legacyLxcReady: legacyLxcReadiness.ready,
+    legacyLxcError: legacyLxcReadiness.error,
     cloudLocalds: hasBin('cloud-localds'),
     wget: hasBin('wget'),
     kvm: hasBin('qemu-kvm') || hasBin('/usr/libexec/qemu-kvm'),
