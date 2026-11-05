@@ -824,16 +824,20 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
             3. Appearance Mode &amp; Interactive Effects
           </label>
-          <p class="muted text-sm mb-3">Adjust default light/dark theme preference and ambient feedback features.</p>
+          <p class="muted text-sm mb-3">Choose the panel-wide color palette and ambient feedback settings.</p>
 
           <div class="grid grid-3" style="gap:16px">
             <div style="background:rgba(0,0,0,0.25);border:1px solid var(--border);border-radius:14px;padding:18px">
               <label style="font-weight:600;margin-bottom:6px;display:block">Default Color Scheme</label>
               <select name="arix.mode" id="arixModeSelect" onchange="onArixModeChange(this.value)">
                 <option value="dark" <%= (all['arix.mode'] || 'dark') === 'dark' ? 'selected' : '' %>>Dark Mode (Deep Navy - Recommended)</option>
+                <option value="default" <%= all['arix.mode'] === 'default' ? 'selected' : '' %>>Slate Indigo</option>
+                <option value="neon" <%= all['arix.mode'] === 'neon' ? 'selected' : '' %>>Emerald Neon</option>
+                <option value="nord" <%= all['arix.mode'] === 'nord' ? 'selected' : '' %>>Nord Frost</option>
+                <option value="dracula" <%= all['arix.mode'] === 'dracula' ? 'selected' : '' %>>Dracula</option>
                 <option value="light" <%= all['arix.mode'] === 'light' ? 'selected' : '' %>>Light Mode (Clean Gray)</option>
               </select>
-              <div class="form-hint mt-2">Users can still toggle with the Sun/Moon button on top navbar.</div>
+              <div class="form-hint mt-2">The selected palette applies across the panel after saving.</div>
             </div>
 
             <div style="background:rgba(0,0,0,0.25);border:1px solid var(--border);border-radius:14px;padding:18px">
@@ -1452,7 +1456,7 @@ function onArixModeChange(mode) {
 }
 
 function resetArixDefaults() {
-  setArixColor('#ef4444');
+  setArixColor('#38bdf8');
   document.getElementById('arixRadiusBoxSlider').value = 10;
   onArixRadiusChange('box', 10);
   document.getElementById('arixRadiusInputSlider').value = 8;

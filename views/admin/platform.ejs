@@ -15,6 +15,18 @@
     <div class="card mb-3">
       <div class="card-title">Panel interface</div>
       <div class="form-group">
+        <label for="panelTheme">Global color theme</label>
+        <select id="panelTheme" name="panel.theme">
+          <option value="dark" <%= (all['panel.theme'] || 'dark') === 'dark' ? 'selected' : '' %>>Blue + Black</option>
+          <option value="default" <%= all['panel.theme'] === 'default' ? 'selected' : '' %>>Slate Indigo</option>
+          <option value="neon" <%= all['panel.theme'] === 'neon' ? 'selected' : '' %>>Emerald Neon</option>
+          <option value="nord" <%= all['panel.theme'] === 'nord' ? 'selected' : '' %>>Nord Frost</option>
+          <option value="dracula" <%= all['panel.theme'] === 'dracula' ? 'selected' : '' %>>Dracula</option>
+          <option value="light" <%= all['panel.theme'] === 'light' ? 'selected' : '' %>>Light</option>
+        </select>
+        <div class="form-hint">Applies to every account. Individual browser theme preferences no longer override this setting.</div>
+      </div>
+      <div class="form-group">
         <label for="panelUiStyle">Visual style preset</label>
         <select id="panelUiStyle" name="panel.ui_style">
           <option value="convoy" <%= all['panel.ui_style'] !== 'classic' ? 'selected' : '' %>>Convoy-inspired — clean infrastructure dashboard</option>
@@ -134,27 +146,94 @@
     </div>
 
     <div class="card mb-3">
-      <div class="card-title">Reward eligibility &amp; VPS limits</div>
-      <div class="muted text-sm mb-3">Users qualify with either the invite threshold or an active boost. Reward VPSs use LXC.</div>
-      <div class="grid grid-3">
-        <div class="form-group"><label>Verified new-member invites</label><input type="number" name="discord.invites_required" min="1" max="1000" value="<%= all['discord.invites_required'] || 5 %>" required/></div>
-        <div class="form-group"><label>Boost requirement</label><input value="1 active boost" readonly/></div>
-        <div class="form-group"><label>Maximum active reward VPSs per user</label><input type="number" name="discord.reward_max_active" min="1" max="10" value="<%= all['discord.reward_max_active'] || 1 %>" required/></div>
-        <div class="form-group"><label>Reward vCPU</label><input type="number" name="discord.reward_cpus" min="1" max="64" value="<%= all['discord.reward_cpus'] || 1 %>" required/></div>
-        <div class="form-group"><label>Reward memory (MB)</label><input type="number" name="discord.reward_memory" min="128" max="65536" step="128" value="<%= all['discord.reward_memory'] || 1024 %>" required/></div>
-        <div class="form-group"><label>Reward disk</label><input name="discord.reward_disk" value="<%= all['discord.reward_disk'] || '10G' %>" pattern="[1-9][0-9]{0,4}[GMgm]" required/></div>
-        <div class="form-group">
-          <label>Reward operating system</label>
-          <select name="discord.reward_os">
-            <% for (const os of rewardOsList) { %>
-              <option value="<%= os[0] %>" <%= (all['discord.reward_os'] || 'Ubuntu 24.04') === os[0] ? 'selected' : '' %>><%= os[0] %></option>
-            <% } %>
-          </select>
+      <div class="flex-between" style="gap:12px;flex-wrap:wrap">
+        <div>
+          <div class="card-title">BOLTs earning rules</div>
+          <p class="muted text-sm">Configure the currency earned through verified invites and active server boosts.</p>
         </div>
       </div>
+      <div class="grid grid-3 mt-3">
+        <div class="form-group"><label>Verified invites per payout</label><input type="number" name="discord.invites_per_reward" min="1" max="1000" value="<%= all['discord.invites_per_reward'] || 5 %>" required/></div>
+        <div class="form-group"><label>BOLTs per invite payout</label><input type="number" name="discord.invite_reward_bolts" min="1" max="1000000000" value="<%= all['discord.invite_reward_bolts'] || 50 %>" required/></div>
+        <div class="form-group"><label>BOLTs per active boost period</label><input type="number" name="discord.boost_reward_bolts" min="1" max="1000000000" value="<%= all['discord.boost_reward_bolts'] || 25 %>" required/></div>
+      </div>
+      <p class="muted text-sm mb-0">Invite payouts are one-time per set of verified invites. Boost payout is one-time per continuous boost period because Discord does not expose a member's boost count.</p>
+    </div>
+
+    <div class="card mb-3">
+      <div class="flex-between" style="gap:12px;flex-wrap:wrap">
+        <div>
+          <div class="card-title">BOLTs VPS shop</div>
+          <p class="muted text-sm">Users spend BOLTs to create one of these VPS plans. Set each plan's cost and specifications.</p>
+        </div>
+        <div class="form-group" style="min-width:220px;margin:0">
+          <label>Maximum active BOLTs VPSs per user</label>
+          <input type="number" name="discord.reward_max_active" min="1" max="10" value="<%= all['discord.reward_max_active'] || 1 %>" required/>
+        </div>
+      </div>
+      <input type="hidden" name="discord.reward_plans" id="rewardPlansJson" data-initial-plans="<%= JSON.stringify(rewardPlans) %>"/>
+      <div id="rewardPlanList" class="mt-3"></div>
+      <div class="grid grid-3 mt-3">
+        <div class="form-group"><label for="planName">Plan name</label><input id="planName" maxlength="48" placeholder="Community VPS"/></div>
+        <div class="form-group"><label for="planCost">Cost (BOLTs)</label><input id="planCost" type="number" min="1" max="1000000000000" value="100" required/></div>
+        <div class="form-group"><label for="planCpus">vCPU</label><input id="planCpus" type="number" min="1" max="64" value="1" required/></div>
+        <div class="form-group"><label for="planMemory">Memory (MB)</label><input id="planMemory" type="number" min="128" max="65536" step="128" value="1024" required/></div>
+        <div class="form-group"><label for="planDisk">Disk</label><input id="planDisk" value="10G" pattern="[1-9][0-9]{0,4}[GMgm]" required/></div>
+        <div class="form-group"><label for="planOs">Operating system</label><select id="planOs"><% for (const os of rewardOsList) { %><option value="<%= os[0] %>"><%= os[0] %></option><% } %></select></div>
+      </div>
+      <button class="btn btn-sm" type="button" id="addRewardPlan"><i data-lucide="plus"></i> Add plan</button>
+      <div class="alert alert-info text-sm mt-3 mb-0">Boost earnings are credited once during each continuous boost period. Admins can add BOLTs to any user's account from the user management page.</div>
     </div>
     <button class="btn btn-primary" type="submit">Save platform settings</button>
   </form>
 </div>
 <%- include('../partials/music') %>
 <%- include('../partials/foot') %>
+<script>
+(() => {
+  const jsonInput = document.getElementById('rewardPlansJson');
+  const plans = JSON.parse(jsonInput.dataset.initialPlans || '[]');
+  const list = document.getElementById('rewardPlanList');
+  const renderPlans = () => {
+    list.replaceChildren();
+    plans.forEach((plan, index) => {
+      const row = document.createElement('div');
+      row.className = 'flex-between';
+      row.style.cssText = 'gap:12px;padding:12px 0;border-bottom:1px solid var(--border);flex-wrap:wrap';
+      const details = document.createElement('div');
+      details.textContent = `${plan.name} · ${plan.costBolts} BOLTs · ${plan.cpus} vCPU · ${plan.memory} MB · ${plan.disk} · ${plan.os}`;
+      const remove = document.createElement('button');
+      remove.type = 'button';
+      remove.className = 'btn btn-sm btn-danger';
+      remove.textContent = 'Remove';
+      remove.addEventListener('click', () => { plans.splice(index, 1); renderPlans(); });
+      row.append(details, remove);
+      list.append(row);
+    });
+    jsonInput.value = JSON.stringify(plans);
+  };
+  document.getElementById('addRewardPlan').addEventListener('click', () => {
+    const name = document.getElementById('planName').value.trim();
+    const formFields = ['planName', 'planCost', 'planCpus', 'planMemory', 'planDisk', 'planOs'];
+    if (!name || !formFields.every((id) => document.getElementById(id).reportValidity())) return;
+    plans.push({
+      id: crypto.randomUUID ? crypto.randomUUID() : `plan-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      name, costBolts: Number(document.getElementById('planCost').value),
+      cpus: Number(document.getElementById('planCpus').value),
+      memory: Number(document.getElementById('planMemory').value),
+      disk: document.getElementById('planDisk').value.trim().toUpperCase(),
+      os: document.getElementById('planOs').value,
+    });
+    document.getElementById('planName').value = '';
+    renderPlans();
+  });
+  document.querySelector('form[action="/admin/platform"]').addEventListener('submit', (event) => {
+    renderPlans();
+    if (!plans.length && document.querySelector('[name="discord.rewards_enabled"]').checked) {
+      event.preventDefault();
+      alert('Add at least one reward plan before enabling rewards.');
+    }
+  });
+  renderPlans();
+})();
+</script>

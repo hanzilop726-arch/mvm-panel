@@ -248,6 +248,7 @@
     { title: 'Theme: Cyberpunk Neon', subtitle: 'Vibrant emerald & violet glow', category: 'Theme Engine', action: () => switchTheme('neon'), icon: 'zap' },
     { title: 'Theme: Arctic Nord', subtitle: 'Cool oceanic blue frost', category: 'Theme Engine', action: () => switchTheme('nord'), icon: 'compass' },
     { title: 'Theme: Dracula Gothic', subtitle: 'High contrast purple & pink', category: 'Theme Engine', action: () => switchTheme('dracula'), icon: 'droplet' },
+    { title: 'Theme: Light', subtitle: 'Bright blue accent on a light surface', category: 'Theme Engine', action: () => switchTheme('light'), icon: 'sun' },
 
     // Languages
     { title: 'Language: English (US)', subtitle: 'Switch display language to English', category: 'Language (i18n)', action: () => switchLang('en'), icon: 'globe' },
@@ -275,10 +276,10 @@
   };
 
   function switchTheme(name) {
-    fetch('/admin/settings/update', {
+    fetch('/admin/settings/arix', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ 'panel.theme': name })
+      body: JSON.stringify({ 'arix.mode': name })
     }).finally(() => {
       document.documentElement.setAttribute('data-theme', name);
       window.location.reload();

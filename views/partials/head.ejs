@@ -10,12 +10,12 @@ if (!favicon) {
 const arixPrimary = settings['arix.primary'] || settings['panel.accent'] || '#ef4444';
 const radiusBox = settings['arix.radius_box'] || '10px';
 const radiusInput = settings['arix.radius_input'] || '8px';
-const theme = settings['arix.mode'] || settings['panel.theme'] || 'dark';
+const theme = settings['panel.theme'] || settings['arix.mode'] || 'dark';
 const navbarTransparent = settings['panel.navbar_transparent'] === '1' || settings['panel.navbar_transparent'] === true;
 const navbarBlur = settings['panel.navbar_blur'] === '1' || settings['panel.navbar_blur'] === true;
 const navbarStyle = settings['panel.navbar_style'] || 'glass';
 %><!DOCTYPE html>
-<html lang="en" data-theme="<%= theme %>">
+<html lang="en" data-theme="<%= theme %>" data-default-theme="<%= settings['panel.theme'] || 'dark' %>">
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
@@ -44,16 +44,6 @@ function vpToken() {
   return (m ? decodeURIComponent(m[1]) : '') || (window.VP_TOKEN || '');
 }
 
-// Synchronize theme with localStorage
-(function() {
-  try {
-    const saved = localStorage.getItem('arix_theme') || localStorage.getItem('theme');
-    if (saved && (saved === 'dark' || saved === 'light')) {
-      document.documentElement.setAttribute('data-theme', saved);
-    }
-  } catch(e) {}
-})();
-
 document.addEventListener('DOMContentLoaded', function() {
   if (window.lucide && typeof window.lucide.createIcons === 'function') {
     window.lucide.createIcons();
@@ -61,4 +51,4 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 </head>
-<body class="ui-<%= settings['panel.ui_style'] === 'classic' ? 'classic' : 'convoy' %> <%= navbarStyle === 'glass' ? '' : 'nav-' + navbarStyle %> <%= navbarTransparent ? 'nav-transparent' : '' %> <%= navbarBlur ? 'nav-blur' : '' %> <%= (settings['panel.bg_mode'] && settings['panel.bg_mode'] !== 'color') ? 'bg-visible' : '' %>">
+<body class="ui-vertex ui-<%= settings['panel.ui_style'] === 'classic' ? 'classic' : 'convoy' %> <%= navbarStyle === 'glass' ? '' : 'nav-' + navbarStyle %> <%= navbarTransparent ? 'nav-transparent' : '' %> <%= navbarBlur ? 'nav-blur' : '' %> <%= (settings['panel.bg_mode'] && settings['panel.bg_mode'] !== 'color') ? 'bg-visible' : '' %>">

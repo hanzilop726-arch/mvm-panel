@@ -70,7 +70,7 @@ const defaultSettings = {
   'panel.navbar_style': 'glass',
   'panel.navbar_transparent': '1',
   'panel.navbar_blur': '1',
-  'panel.accent': '#ef4444',
+  'panel.accent': '#38bdf8',
   'panel.theme': 'dark',
   'panel.wallpapers_api_key': '',
   'billing.currency': 'USD',
@@ -132,6 +132,10 @@ const defaultSettings = {
   'discord.reward_disk': '10G',
   'discord.reward_os': 'Ubuntu 24.04',
   'discord.reward_max_active': '1',
+  'discord.reward_plans': '[]',
+  'discord.invites_per_reward': '5',
+  'discord.invite_reward_bolts': '50',
+  'discord.boost_reward_bolts': '25',
   'vm.os_list': JSON.stringify([
     ['Ubuntu 22.04', 'ubuntu', 'jammy', 'https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-amd64.img', 'ubuntu', 'root'],
     ['Ubuntu 24.04', 'ubuntu', 'noble', 'https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img', 'ubuntu', 'root'],
@@ -214,7 +218,7 @@ async function initDb() {
     'billing_plans', 'billing_invoices', 'billing_coupons',
     'update_history', 'quotas', 'templates', 'user_sessions',
     'nodes', 'node_allocations', 'locations',
-    'discord_oauth_states', 'discord_invites', 'provision_jobs'
+    'discord_oauth_states', 'discord_invites', 'provision_jobs', 'bolt_transactions'
   ];
   for (const name of names) {
     collections[name] = dbInstance.collection(name);
@@ -266,6 +270,9 @@ async function initDb() {
       collections.discord_oauth_states.createIndex({ expires_at: 1 }, { expireAfterSeconds: 0 }),
       collections.discord_invites.createIndex({ invitee_id: 1 }, { unique: true }),
       collections.discord_invites.createIndex({ inviter_id: 1 }),
+      collections.bolt_transactions.createIndex({ id: 1 }, { unique: true }),
+      collections.bolt_transactions.createIndex({ reference: 1 }, { unique: true }),
+      collections.bolt_transactions.createIndex({ user_id: 1, created_at: -1 }),
       collections.provision_jobs.createIndex({ job_id: 1 }, { unique: true }),
       collections.provision_jobs.createIndex({ expires_at: 1 }, { expireAfterSeconds: 0 }),
     ]);

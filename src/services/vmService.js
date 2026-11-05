@@ -430,7 +430,13 @@ async function create({ user, data, onProgress = async () => {} }) {
   const username = String(data.username || (virtualization === 'lxc' ? 'root' : osEntry[4]) || 'root').toLowerCase();
   const password = String(data.password || 'vpanel' + Math.random().toString(36).slice(2, 8));
   const diskSize = String(data.disk_size || settings.get('vm.default_disk') || '20G').toUpperCase();
-  const memory = parseInt(data.memory || settings.get('vm.default_memory') || '2048', 10);
+  const memory = Number(data.memory || settings.get('vm.default_memory') || '2048');
+  if (!Number.isSafeInteger(memory) || memory < 1) {
+    throw new Error('Memory must be a positive whole number of megabytes.');
+  }
+  if (virtualization === 'lxc' && (memory < 128 || memory > 1048576)) {
+    throw new Error('LXC memory must be between 128 and 1048576 MB.');
+  }
   const cpus = parseInt(data.cpus || settings.get('vm.default_cpus') || '2', 10);
   const sshPort = data.ssh_port ? parseInt(data.ssh_port, 10) : await allocPort();
   if (isNaN(sshPort) || sshPort < 23 || sshPort > 65535) throw new Error('Invalid SSH port');

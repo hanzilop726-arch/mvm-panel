@@ -1,3 +1,4 @@
+<% if (typeof page !== 'undefined' && page !== 'dashboard') { %>
 <% 
 const isAdmin = user && (user.role === 'admin' || user.root_admin);
 const hasVm = typeof vm !== 'undefined' && vm;
@@ -107,3 +108,4 @@ const iconRocket = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" s
   <div class="nav-section-title" style="margin-top:auto">Session</div>
   <a href="/logout" class="nav-link" style="color:var(--gray-400)"><span class="v-icon"><%- iconLogout %></span><span>Logout</span></a>
 </div>
+<% } %>

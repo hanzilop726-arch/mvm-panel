@@ -169,6 +169,9 @@ router.get('/vms', async (req, res, next) => {
 });
 
 router.post('/vms', json, async (req, res) => {
+  if (req.user.role !== 'admin' && !req.user.root_admin) {
+    return res.status(403).json({ error: 'Only administrators can create virtual machines.' });
+  }
   try {
     const vm = await vmService.create({ user: req.user, data: req.body });
     return res.json({ ok: true, vm });

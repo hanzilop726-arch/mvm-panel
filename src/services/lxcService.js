@@ -140,6 +140,22 @@ function setResourceLimitConfig(contents, memory, cpus, version) {
   return `${withoutOldLimits}\n${resourceLimitConfig(memory, cpus, version).join('\n')}\n`;
 }
 
+function withMemoryInfoMount(contents) {
+  const source = '/var/lib/lxcfs/proc/meminfo';
+  const mount = `lxc.mount.entry = ${source} proc/meminfo none bind,ro,create=file 0 0`;
+  if (!fs.existsSync(source) || contents.split(/\r?\n/).some((line) => line.trim() === mount)) return contents;
+  return `${contents.trimEnd()}\n${mount}\n`;
+}
+
+function writeResourceConfig(vm) {
+  const ready = readiness();
+  if (!ready.ready) throw new Error(`Classic LXC is not ready: ${ready.error}`);
+  const configPath = path.join(config.vmDir, containerName(vm), 'config');
+  const contents = fs.readFileSync(configPath, 'utf8');
+  const limitedConfig = setResourceLimitConfig(contents, Number(vm.memory), Number(vm.cpus), ready.cgroupVersion);
+  fs.writeFileSync(configPath, withMemoryInfoMount(limitedConfig));
+}
+
 async function createRootfsImage(vm, directory) {
   const size = String(vm.disk_size || '');
   const match = size.match(/^([1-9]\d{0,4})([GM])$/i);
@@ -193,10 +209,7 @@ async function create(vm) {
       'lxc.net.0.flags = up',
       '',
     ].join('\n'));
-    fs.writeFileSync(
-      path.join(directory, 'config'),
-      setResourceLimitConfig(fs.readFileSync(path.join(directory, 'config'), 'utf8'), Number(vm.memory), Number(vm.cpus), ready.cgroupVersion)
-    );
+    writeResourceConfig(vm);
     await start(vm);
     await waitForIp(vm);
     await execFile('lxc-attach', [...baseArgs(vm), '--clear-env', '--', 'sh', '-lc',
@@ -234,10 +247,9 @@ async function updateResources(vm, data) {
   const memory = data.memory === undefined ? Number(vm.memory) : Number(data.memory);
   const ready = readiness();
   if (!ready.ready) throw new Error(`Classic LXC is not ready: ${ready.error}`);
+  resourceLimitConfig(memory, cpus, ready.cgroupVersion);
   if (data.disk_size !== undefined) await resizeDisk(vm, data.disk_size);
-  const configPath = path.join(config.vmDir, containerName(vm), 'config');
-  const contents = fs.readFileSync(configPath, 'utf8');
-  fs.writeFileSync(configPath, setResourceLimitConfig(contents, memory, cpus, ready.cgroupVersion));
+  writeResourceConfig({ ...vm, memory, cpus });
 }
 
 async function start(vm) {
@@ -247,6 +259,7 @@ async function start(vm) {
     await ensureProxy(vm, ip);
     return;
   }
+  writeResourceConfig(vm);
   await execFile('lxc-start', [...baseArgs(vm), '-d']);
   const ip = await waitForIp(vm);
   await ensureProxy(vm, ip);

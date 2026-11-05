@@ -20,6 +20,31 @@ if (!logo) logo = '/mvm-mark.svg';
 </div>
 <% } %>
 
+<% if (typeof page !== 'undefined' && page === 'dashboard') { %>
+<div class="topbar vertex-topbar">
+  <a href="/dashboard" class="brand">
+    <img src="<%= logo %>" alt="<%= panelName %> logo" style="height:32px;border-radius:10px"/>
+    <span class="brand-text"><%= panelName %></span>
+  </a>
+  <nav class="vertex-nav" aria-label="Main navigation">
+    <a class="active" href="/dashboard">Dashboard</a>
+    <a href="/dashboard#services">Services</a>
+    <a href="/rewards">Earn BOLTs</a>
+  </nav>
+  <div class="vertex-account">
+    <% if (user && (user.role === 'admin' || user.root_admin)) { %>
+      <a class="btn btn-sm vertex-admin-link" href="/admin">Admin</a>
+      <a class="btn btn-sm btn-primary vertex-deploy-link" href="/admin/servers/create"><i data-lucide="rocket"></i> Deploy VPS</a>
+    <% } %>
+    <% if (user) { %>
+      <a class="vertex-user" href="/profile" title="Profile">
+        <span class="avatar"><% if (user.avatar) { %><img src="<%= user.avatar %>" alt=""/><% } else { %><%= (user.username[0] || 'U').toUpperCase() %><% } %></span>
+        <span><%= user.username %></span>
+      </a>
+    <% } %>
+  </div>
+</div>
+<% } else { %>
 <div class="topbar">
   <button class="icon-btn hamburger" onclick="document.querySelector('.sidebar').classList.toggle('open')" aria-label="menu" style="display:none">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
@@ -38,6 +63,7 @@ if (!logo) logo = '/mvm-mark.svg';
         <input type="text" placeholder="Search resources... (Ctrl+K)" id="globalSearch" readonly style="cursor:pointer"/>
         <kbd style="font-size:10px;padding:2px 6px;background:var(--gray-700);border:1px solid var(--border);border-radius:4px;color:var(--gray-300);font-family:var(--font-mono)">⌘K</kbd>
       </div>
+      <% } %>
 
       <!-- Mode Toggler (Dark / Light) -->
       <button type="button" class="icon-btn" id="btnThemeToggle" title="Toggle Dark/Light Mode" onclick="toggleArixTheme()" style="border-radius:var(--radius-input)">
@@ -87,12 +113,10 @@ if (!logo) logo = '/mvm-mark.svg';
 <script>
 function toggleArixTheme() {
   const current = document.documentElement.getAttribute('data-theme') || 'dark';
-  const next = current === 'dark' ? 'light' : 'dark';
+  const defaultTheme = document.documentElement.dataset.defaultTheme || 'dark';
+  const baseTheme = defaultTheme === 'light' ? 'dark' : defaultTheme;
+  const next = current === 'light' ? baseTheme : 'light';
   document.documentElement.setAttribute('data-theme', next);
-  try {
-    localStorage.setItem('arix_theme', next);
-    localStorage.setItem('theme', next);
-  } catch(e) {}
   updateThemeIcons(next);
 }
 function updateThemeIcons(mode) {

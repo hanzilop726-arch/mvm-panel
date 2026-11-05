@@ -237,6 +237,16 @@
           <label>Current Status</label>
           <div>
             <% if (target.is_banned) { %>
+
+        <div class="card">
+          <div class="card-title mb-3">BOLTs wallet</div>
+          <p class="muted text-sm">Current balance: <strong id="userBoltBalance"><%= boltBalance %> BOLTs</strong></p>
+          <div class="form-group mb-3">
+            <label for="boltAmount">Add BOLTs</label>
+            <input id="boltAmount" type="number" min="1" max="1000000000000" step="1" value="100" required/>
+          </div>
+          <button type="button" class="btn btn-primary" onclick="addUserBolts()">Add to wallet</button>
+        </div>
               <span class="pill pill-red font-bold">Banned</span>
               <% if (target.ban_reason) { %>
                 <div class="muted text-sm mt-1">Reason: <%= target.ban_reason %></div>
@@ -650,6 +660,18 @@ async function saveBilling() {
     setTimeout(() => location.reload(), 600);
   } catch (e) {
     VP.toast(e.message, 'error');
+  }
+}
+
+async function addUserBolts() {
+  const amount = Number(val('boltAmount'));
+  if (!Number.isSafeInteger(amount) || amount < 1) return VP.toast('Enter a positive whole Bolt amount.', 'error');
+  try {
+    const result = await VP.api('/admin/users/<%= target.id %>/bolts', { method: 'POST', body: { amount } });
+    document.getElementById('userBoltBalance').textContent = `${result.bolts} BOLTs`;
+    VP.toast(`${amount} BOLTs added to the account.`, 'success');
+  } catch (error) {
+    VP.toast(error.message, 'error');
   }
 }
 

@@ -4,6 +4,7 @@ const WebSocket = require('ws');
 const { collections, settings } = require('../lib/db');
 const config = require('../lib/config');
 const logger = require('../lib/logger');
+const boltService = require('./boltService');
 
 const API = 'https://discord.com/api/v10';
 let gateway = null;
@@ -36,6 +37,16 @@ function redirectUri() {
 
 function botHeaders() {
   return { Authorization: `Bot ${settings.get('discord.bot_token')}` };
+}
+
+async function awardBoostBolts(userId, premiumSince) {
+  if (!premiumSince) return;
+  const boostStarted = new Date(premiumSince).toISOString();
+  await boltService.credit(userId, Math.max(1, Number(settings.get('discord.boost_reward_bolts')) || 25), {
+    source: 'discord_boost',
+    reference: `discord-boost:${userId}:${boostStarted}`,
+    details: { premiumSince: boostStarted },
+  });
 }
 
 async function createOAuthState(userId, returnTo = '/rewards') {
@@ -95,8 +106,8 @@ async function linkDiscordAccount(code, state) {
   if (updated.matchedCount !== 1) throw new Error('The panel account for this Discord authorization no longer exists');
   const referral = await collections.discord_invites.findOne({ invitee_id: discordId });
   if (referral && referral.inviter_id !== discordId) {
-    await collections.users.updateOne(
-      { id: Number(stateDoc.user_id), discord_referrer_id: { $exists: false } },
+    await collections.users.updateMany(
+      { discord_id: discordId, discord_referrer_id: { $exists: false } },
       { $set: { discord_referrer_id: String(referral.inviter_id) } }
     );
   }
@@ -109,19 +120,37 @@ async function linkDiscordAccount(code, state) {
 
 async function getRewardStatus(user) {
   const maxActive = Math.max(1, Number(settings.get('discord.reward_max_active')) || 1);
-  const activeCount = await collections.vms.countDocuments({ owner_id: Number(user.id), reward_type: 'discord' });
+  const activeCount = await collections.vms.countDocuments({ owner_id: Number(user.id), reward_type: { $in: ['discord', 'bolts'] } });
+  let plans = settings.get('discord.reward_plans', []);
+  if (typeof plans === 'string') {
+    try { plans = JSON.parse(plans); } catch (_) { plans = []; }
+  }
+  if (!Array.isArray(plans) || plans.length === 0) {
+    plans = [{
+      id: 'legacy-default', name: 'Community VPS', costBolts: 100,
+      cpus: Math.max(1, Number(settings.get('discord.reward_cpus')) || 1),
+      memory: Math.max(128, Number(settings.get('discord.reward_memory')) || 1024),
+      disk: String(settings.get('discord.reward_disk') || '10G'),
+      os: String(settings.get('discord.reward_os') || 'Ubuntu 24.04'),
+    }];
+  }
   const status = {
     enabled: enabled(),
     configured: configured(),
     linked: Boolean(user.discord_id),
     discordUsername: user.discord_username || '',
     invites: 0,
-    requiredInvites: Math.max(1, Number(settings.get('discord.invites_required')) || 5),
-    boostsRequired: 1,
+    invitesPerReward: Math.max(1, Number(settings.get('discord.invites_per_reward')) || 5),
+    inviteRewardBolts: Math.max(1, Number(settings.get('discord.invite_reward_bolts')) || 50),
+    boostRewardBolts: Math.max(1, Number(settings.get('discord.boost_reward_bolts')) || 25),
+    plans: plans.map((plan) => {
+      const costBolts = Math.max(1, Number(plan.costBolts) || 100);
+      return { ...plan, costBolts, affordable: Number(user.bolts) >= costBolts };
+    }),
     activeCount,
     maxActive,
+    boltBalance: await boltService.getBalance(user.id),
     boosting: false,
-    eligible: false,
     reason: '',
     error: '',
   };
@@ -139,21 +168,32 @@ async function getRewardStatus(user) {
   }
 
   status.invites = await collections.users.countDocuments({ discord_referrer_id: String(user.discord_id) });
+  const rewardCount = Math.floor(status.invites / status.invitesPerReward);
+  for (let count = Math.max(0, Number(user.discord_invite_reward_count) || 0) + 1; count <= rewardCount; count += 1) {
+    await boltService.credit(user.id, status.inviteRewardBolts, {
+      source: 'discord_invites',
+      reference: `discord-invites:${user.id}:${count}`,
+      details: { invites: count * status.invitesPerReward, rewardCount: count },
+    });
+    await collections.users.updateOne({ id: Number(user.id) }, { $max: { discord_invite_reward_count: count } });
+  }
   try {
     const response = await axios.get(`${API}/guilds/${encodeURIComponent(settings.get('discord.guild_id'))}/members/${encodeURIComponent(user.discord_id)}`, {
       headers: botHeaders(),
       timeout: 10000,
     });
-    status.boosting = Boolean(response.data && response.data.premium_since);
+    const premiumSince = response.data && response.data.premium_since;
+    status.boosting = Boolean(premiumSince);
+    if (premiumSince) await awardBoostBolts(user.id, premiumSince);
   } catch (error) {
     if (error.response?.status !== 404) {
       status.error = error.response?.data?.message || 'Could not verify Discord server membership. Try again later.';
     }
   }
-  status.eligible = !status.error && (status.invites >= status.requiredInvites || status.boosting);
+  status.boltBalance = await boltService.getBalance(user.id);
+  status.plans = status.plans.map((plan) => ({ ...plan, affordable: status.boltBalance >= plan.costBolts }));
   if (status.activeCount >= status.maxActive) status.reason = 'You already have the maximum number of active reward servers.';
-  else if (status.eligible) status.reason = 'You are eligible to claim a free VPS.';
-  else status.reason = `Invite ${status.requiredInvites} verified new members or actively boost the Discord server.`;
+  else status.reason = 'Earn BOLTs with verified invites or an active server boost, then spend them on a VPS plan.';
   return status;
 }
 
@@ -358,6 +398,13 @@ function startGateway() {
       inviteSync = inviteSync
         .then(() => rememberMemberJoin(packet.d.user.id))
         .catch((error) => logger.warn('[discord] Could not record invite join: ' + error.message));
+    }
+    if (enabled() && packet.t === 'GUILD_MEMBER_UPDATE'
+      && packet.d.guild_id === String(settings.get('discord.guild_id'))
+      && packet.d.premium_since && packet.d.user?.id) {
+      collections.users.findOne({ discord_id: String(packet.d.user.id) })
+        .then((user) => user && awardBoostBolts(user.id, packet.d.premium_since))
+        .catch((error) => logger.warn('[discord] Could not credit boost reward: ' + error.message));
     }
     if (enabled() && (packet.t === 'INVITE_CREATE' || packet.t === 'INVITE_DELETE')) {
       readGuildInvites().then((items) => {

@@ -2,17 +2,17 @@
 <%- include('../partials/ambient') %>
 <%- include('../partials/topbar') %>
 <%- include('../partials/sidebar') %>
-<div class="main admin-dashboard">
-  <div class="flex-between dashboard-heading mb-4">
+<main class="vertex-dashboard admin-dashboard">
+  <section class="vertex-page-heading">
     <div>
-      <h2 style="font-size:24px;font-weight:800;letter-spacing:-0.4px">Admin Overview</h2>
-      <div class="muted" style="margin-top:2px">Cluster management &amp; host health metrics</div>
+      <h1>Admin Overview</h1>
+      <p>Cluster management and host health.</p>
     </div>
-    <a class="btn btn-primary" href="/admin/servers/create">
+    <a class="btn btn-primary vertex-mobile-deploy" href="/admin/servers/create">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M12 5v14M5 12h14"/></svg>
-      Create Virtual Machine
+      Deploy VPS
     </a>
-  </div>
+  </section>
 
   <% if (settings && settings['update.available'] === '1') { %>
     <div class="card mb-4" style="background:linear-gradient(90deg, rgba(245,158,11,0.12), rgba(217,119,6,0.18));border:1px solid rgba(245,158,11,0.4);border-radius:12px;padding:16px 20px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px;box-shadow:0 4px 20px rgba(245,158,11,0.15)">
@@ -209,7 +209,7 @@
       </table>
     </div>
   </div>
-</div>
+</main>
 <%- include('../partials/music') %>
 <%- include('../partials/foot') %>
 

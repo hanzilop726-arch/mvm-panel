@@ -125,9 +125,7 @@ window.VP = (() => {
   return { toast, api, qs, qsa, el, fmtBytes, fmtDate, confirmDialog, hide, show, state, playSound, copyText };
 })();
 
-(function () {
-  const m = /(?:^|;\s*)theme=([^;]+)/.exec(document.cookie);
-  const local = localStorage.getItem('arix_theme') || localStorage.getItem('vpanel_theme');
-  const t = (m ? m[1] : null) || local || 'dark';
-  document.documentElement.setAttribute('data-theme', t);
-})();
+if (!document.documentElement.hasAttribute('data-theme')) {
+  document.documentElement.setAttribute('data-theme', 'dark');
+}
+

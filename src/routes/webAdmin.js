@@ -13,6 +13,7 @@ const resourceService = require('../services/resourceService');
 const { requireAdmin } = require('../middleware/auth');
 const { uploadLogo, uploadFavicon, uploadBackground, uploadMusic } = require('../middleware/upload');
 const discordService = require('../services/discordService');
+const boltService = require('../services/boltService');
 const multer = require('multer');
 const fs2 = require('fs');
 const createUpload = multer({ dest: config.root + '/data/tmp' });
@@ -35,12 +36,37 @@ const nodeService = require('../services/nodeService');
 function platformVars(all = settings.all()) {
   const defaultRedirectUri = discordService.redirectUri();
   const rewardOsList = vmService.getOsList().filter((os) => ['ubuntu', 'debian'].includes(String(os[1] || '').toLowerCase()));
+  let rewardPlans = all['discord.reward_plans'] || [];
+  if (typeof rewardPlans === 'string') {
+    try { rewardPlans = JSON.parse(rewardPlans); } catch (_) { rewardPlans = []; }
+  }
+  if (!Array.isArray(rewardPlans) || rewardPlans.length === 0) {
+    rewardPlans = [{
+      id: 'legacy-default',
+      name: 'Community VPS',
+      costBolts: 100,
+      cpus: Number(all['discord.reward_cpus']) || 1,
+      memory: Number(all['discord.reward_memory']) || 1024,
+      disk: String(all['discord.reward_disk'] || '10G'),
+      os: String(all['discord.reward_os'] || 'Ubuntu 24.04'),
+    }];
+  }
+  rewardPlans = rewardPlans.map((plan) => ({
+    id: String(plan.id || crypto.randomUUID()),
+    name: String(plan.name || 'VPS Plan'),
+    costBolts: Math.max(1, Number(plan.costBolts) || 100),
+    cpus: Math.max(1, Number(plan.cpus) || 1),
+    memory: Math.max(128, Number(plan.memory) || 1024),
+    disk: String(plan.disk || plan.disk_size || '10G'),
+    os: String(plan.os || 'Ubuntu 24.04'),
+  }));
   const virtualization = vmService.usage();
   const lxcDriver = String(all['vm.lxc_driver'] || 'lxd');
   return {
     all,
     defaultRedirectUri,
     rewardOsList,
+    rewardPlans,
     lxcInstalled: virtualization.lxc,
     lxcDriver,
     lxdReady: virtualization.lxd,
@@ -77,6 +103,7 @@ router.post('/admin/platform', express.urlencoded({ extended: true }), async (re
   const enableLxc = req.body['vm.enable_lxc'] === '1';
   const defaultBackend = String(req.body['vm.default_virtualization'] || '');
   const panelUiStyle = String(req.body['panel.ui_style'] || '');
+  const panelTheme = String(req.body['panel.theme'] || '');
   const lxcDriver = String(req.body['vm.lxc_driver'] || '');
   const lxdStoragePool = String(req.body['vm.lxd_storage_pool'] || 'default').trim();
   const bridge = String(req.body['vm.lxc_bridge'] || 'lxcbr0').trim();
@@ -87,18 +114,20 @@ router.post('/admin/platform', express.urlencoded({ extended: true }), async (re
   const redirectUri = String(req.body['discord.redirect_uri'] || '').trim();
   const clientSecret = req.body.clear_client_secret === '1' ? '' : (String(req.body['discord.client_secret'] || '').trim() || settings.get('discord.client_secret') || '');
   const botToken = req.body.clear_bot_token === '1' ? '' : (String(req.body['discord.bot_token'] || '').trim() || settings.get('discord.bot_token') || '');
-  const invitesRequired = integer('discord.invites_required', 1, 1000);
-  const rewardCpus = integer('discord.reward_cpus', 1, 64);
-  const rewardMemory = integer('discord.reward_memory', 128, 65536);
   const rewardMaxActive = integer('discord.reward_max_active', 1, 10);
-  const rewardDisk = String(req.body['discord.reward_disk'] || '').trim().toUpperCase();
-  const rewardOs = String(req.body['discord.reward_os'] || '');
+  const invitesPerReward = integer('discord.invites_per_reward', 1, 1000);
+  const inviteRewardBolts = integer('discord.invite_reward_bolts', 1, 1000000000);
+  const boostRewardBolts = integer('discord.boost_reward_bolts', 1, 1000000000);
+  let rewardPlans = [];
+  try { rewardPlans = JSON.parse(String(req.body['discord.reward_plans'] || '[]')); } catch (_) {}
   const rewardOsList = vmService.getOsList().filter((os) => ['ubuntu', 'debian'].includes(String(os[1] || '').toLowerCase()));
   let callbackUrl = null;
   try { callbackUrl = redirectUri ? new URL(redirectUri) : null; } catch (_) {}
 
   if (!enableKvm && !enableLxc) return fail('At least one virtualization backend must remain enabled.');
   if (!['convoy', 'classic'].includes(panelUiStyle)) return fail('Choose a supported panel interface style.');
+  const themeOptions = ['dark', 'default', 'neon', 'nord', 'dracula', 'light'];
+  if (!themeOptions.includes(panelTheme)) return fail('Choose a supported color theme.');
   if (!['lxd', 'legacy'].includes(lxcDriver)) return fail('Choose a supported LXC container driver.');
   if (!/^[a-zA-Z0-9_.-]{1,63}$/.test(lxdStoragePool)) return fail('LXD storage pool name must contain 1-63 letters, numbers, dots, underscores, or hyphens.');
   if (!['kvm', 'lxc'].includes(defaultBackend) || (defaultBackend === 'kvm' && !enableKvm) || (defaultBackend === 'lxc' && !enableLxc)) {
@@ -108,11 +137,24 @@ router.post('/admin/platform', express.urlencoded({ extended: true }), async (re
   if (clientId && !/^\d{15,22}$/.test(clientId)) return fail('Discord Client ID must be a numeric application ID.');
   if (guildId && !/^\d{15,22}$/.test(guildId)) return fail('Discord Server ID must be numeric.');
   if (redirectUri && (!callbackUrl || !['http:', 'https:'].includes(callbackUrl.protocol))) return fail('Enter a valid HTTP or HTTPS Discord callback URL.');
-  if (invitesRequired === null || rewardCpus === null || rewardMemory === null || rewardMaxActive === null) {
-    return fail('Reward invite, CPU, memory, or active-server limits are outside the allowed range.');
+  if (rewardMaxActive === null) return fail('The active-server limit must be between 1 and 10.');
+  if (invitesPerReward === null || inviteRewardBolts === null || boostRewardBolts === null) return fail('Invite and boost Bolt rewards must use positive values within the allowed limits.');
+  if (!Array.isArray(rewardPlans) || rewardPlans.length > 50 || (rewardsEnabled && rewardPlans.length < 1)) return fail('Add between 1 and 50 Discord reward plans before enabling rewards.');
+  const normalizedPlans = [];
+  for (const plan of rewardPlans) {
+    const name = String(plan?.name || '').trim();
+    const costBolts = Number(plan?.costBolts);
+    const cpus = Number(plan?.cpus);
+    const memory = Number(plan?.memory);
+    const disk = String(plan?.disk || '').trim().toUpperCase();
+    const os = String(plan?.os || '');
+    if (!name || name.length > 48) return fail('Each VPS plan needs a name between 1 and 48 characters.');
+    if (!Number.isSafeInteger(costBolts) || costBolts < 1 || costBolts > 1000000000000) return fail('Each VPS plan needs a cost between 1 and 1,000,000,000,000 Bolts.');
+    if (!Number.isInteger(cpus) || cpus < 1 || cpus > 64 || !Number.isInteger(memory) || memory < 128 || memory > 65536) return fail('Plan CPU or memory is outside the allowed range.');
+    if (!/^[1-9]\d{0,4}[GM]$/.test(disk)) return fail('Plan disk must be between 1 and 99999 GB or MB, such as 10G.');
+    if (!rewardOsList.some((item) => item[0] === os)) return fail('Select a supported Ubuntu or Debian LXC image for each plan.');
+    normalizedPlans.push({ id: String(plan.id || crypto.randomUUID()), name, costBolts, cpus, memory, disk, os });
   }
-  if (!/^[1-9]\d{0,4}[GM]$/.test(rewardDisk)) return fail('Reward disk must be between 1 and 99999 GB or MB, such as 10G.');
-  if (!rewardOsList.some((os) => os[0] === rewardOs)) return fail('Select a supported Ubuntu or Debian LXC image for reward servers.');
   if (rewardsEnabled && !enableLxc) return fail('LXC must be enabled to provide Discord reward VPSs.');
   if (rewardsEnabled && (!clientId || !clientSecret || !botToken || !guildId)) {
     return fail('Configure the Discord application, client secret, bot token, and server ID before enabling rewards.');
@@ -122,8 +164,13 @@ router.post('/admin/platform', express.urlencoded({ extended: true }), async (re
   }
 
   try {
+    const themeAccents = { dark: '#38bdf8', default: '#6366f1', neon: '#10b981', nord: '#88c0d0', dracula: '#bd93f9', light: '#2563eb' };
     const values = {
       'panel.ui_style': panelUiStyle,
+      'panel.theme': panelTheme,
+      'panel.accent': themeAccents[panelTheme],
+      'arix.primary': themeAccents[panelTheme],
+      'arix.mode': panelTheme,
       'vm.enable_kvm': enableKvm ? '1' : '0',
       'vm.enable_lxc': enableLxc ? '1' : '0',
       'vm.default_virtualization': defaultBackend,
@@ -137,20 +184,18 @@ router.post('/admin/platform', express.urlencoded({ extended: true }), async (re
       'discord.client_secret': clientSecret,
       'discord.bot_token': botToken,
       'discord.guild_id': guildId,
-      'discord.invites_required': String(invitesRequired),
-      'discord.boosts_required': '1',
-      'discord.reward_cpus': String(rewardCpus),
-      'discord.reward_memory': String(rewardMemory),
-      'discord.reward_disk': rewardDisk,
-      'discord.reward_os': rewardOs,
+      'discord.reward_plans': JSON.stringify(normalizedPlans),
       'discord.reward_max_active': String(rewardMaxActive),
+      'discord.invites_per_reward': String(invitesPerReward),
+      'discord.invite_reward_bolts': String(inviteRewardBolts),
+      'discord.boost_reward_bolts': String(boostRewardBolts),
     };
     for (const [key, value] of Object.entries(values)) await settings.set(key, value);
     discordService.startGateway();
     await activity.logActivity({
       user_id: req.user.id,
       event: 'admin:platform_settings_update',
-      details: { enableKvm, enableLxc, defaultBackend, lxcDriver, lxdStoragePool, rewardsEnabled, panelControlEnabled },
+      details: { enableKvm, enableLxc, defaultBackend, lxcDriver, lxdStoragePool, rewardsEnabled, panelControlEnabled, invitesPerReward, inviteRewardBolts, boostRewardBolts },
     });
     return res.redirect('/admin/platform?updated=1');
   } catch (error) {
@@ -826,11 +871,32 @@ router.get('/admin/users/:id', async (req, res, next) => {
       activeSessions,
       logs,
       quota,
+      boltBalance: Number(target.bolts) || 0,
       languages,
       currency
     });
   } catch (err) {
     next(err);
+  }
+});
+
+router.post('/admin/users/:id/bolts', express.json(), async (req, res) => {
+  const target = await authService.findById(req.params.id);
+  if (!target) return res.status(404).json({ error: 'User not found' });
+  const amount = Number(req.body?.amount);
+  if (!Number.isSafeInteger(amount) || amount < 1 || amount > 1000000000000) {
+    return res.status(400).json({ error: 'Enter a positive whole Bolt amount.' });
+  }
+  try {
+    const result = await boltService.credit(target.id, amount, {
+      source: 'admin_adjustment',
+      actorId: req.user.id,
+      details: { username: target.username },
+    });
+    await activity.logActivity({ user_id: req.user.id, event: 'admin:bolts_credit', details: { target: target.username, amount } });
+    return res.json({ ok: true, bolts: result.balance });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
   }
 });
 
@@ -1137,21 +1203,29 @@ router.post('/admin/settings/general', express.urlencoded({ extended: true }), a
 });
 
 router.post('/admin/settings/arix', express.urlencoded({ extended: true }), express.json(), async (req, res) => {
-  const save = (key) => {
-    if (req.body[key] !== undefined) settings.set(key, req.body[key]);
+  const allowedThemes = ['dark', 'default', 'neon', 'nord', 'dracula', 'light'];
+  if (req.body['arix.mode'] && !allowedThemes.includes(String(req.body['arix.mode']))) {
+    return res.status(400).json({ ok: false, error: 'Choose a supported panel theme.' });
+  }
+  const save = async (key) => {
+    if (req.body[key] !== undefined) await settings.set(key, req.body[key]);
   };
   for (const key of [
     'arix.primary', 'arix.mode', 'arix.radius_box', 'arix.radius_input',
     'arix.nav_glow', 'arix.sound_effects', 'arix.login_bg', 'arix.logo_url'
   ]) {
-    save(key);
+    await save(key);
   }
   // synchronize primary with panel.accent and panel.theme
   if (req.body['arix.primary']) {
-    settings.set('panel.accent', req.body['arix.primary']);
+    await settings.set('panel.accent', req.body['arix.primary']);
+  } else if (req.body['arix.mode']) {
+    const themeAccents = { dark: '#38bdf8', default: '#6366f1', neon: '#10b981', nord: '#88c0d0', dracula: '#bd93f9', light: '#2563eb' };
+    await settings.set('panel.accent', themeAccents[String(req.body['arix.mode'])]);
+    await settings.set('arix.primary', themeAccents[String(req.body['arix.mode'])]);
   }
   if (req.body['arix.mode']) {
-    settings.set('panel.theme', req.body['arix.mode']);
+    await settings.set('panel.theme', req.body['arix.mode']);
   }
   await activity.logActivity({ user_id: req.user.id, event: 'admin:settings_arix_update', details: req.body });
   if (req.xhr || req.headers.accept?.includes('json')) {

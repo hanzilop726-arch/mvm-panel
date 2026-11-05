@@ -12,6 +12,7 @@ const activity = require('../services/activityService');
 const aiLogService = require('../services/aiLogService');
 const resourceService = require('../services/resourceService');
 const discordService = require('../services/discordService');
+const boltService = require('../services/boltService');
 const addonService = require('../services/addonService');
 const { requireAuth } = require('../middleware/auth');
 const { uploadAvatar } = require('../middleware/upload');
@@ -69,7 +70,7 @@ router.get('/dashboard', async (req, res, next) => {
     const subVms = subVmDocs.map(vmService.serializeVm);
     const running = [...vms, ...subVms].filter((v) => v.status === 'running').length;
     const recentActivity = await activity.listActivity({ user_id: req.user.id, limit: 8 });
-    render(res, 'dashboard', { vms, subVms, running, recentActivity });
+    render(res, 'dashboard', { vms, subVms, running, recentActivity, boltBalance: await boltService.getBalance(req.user.id) });
   } catch (err) {
     next(err);
   }
@@ -80,6 +81,7 @@ router.get('/rewards', async (req, res, next) => {
     const rewardStatus = await discordService.getRewardStatus(req.user);
     render(res, 'rewards', {
       rewardStatus,
+      boltBalance: rewardStatus.boltBalance,
       connected: req.query.connected === '1',
       error: req.query.error || '',
     });
@@ -111,37 +113,56 @@ router.post('/rewards/vps', express.json(), async (req, res) => {
   try {
     const currentUser = await collections.users.findOne({ id: Number(req.user.id) });
     const status = await discordService.getRewardStatus(currentUser);
-    if (!status.eligible) return res.status(403).json({ ok: false, error: status.error || status.reason || 'You are not eligible for a reward VPS yet.' });
+    const plan = status.plans.find((item) => item.id === String(req.body?.planId || ''));
+    if (!plan) return res.status(404).json({ ok: false, error: 'VPS plan not found.' });
     if (status.activeCount >= status.maxActive) return res.status(409).json({ ok: false, error: 'You already have the maximum number of active reward servers.' });
     if (String(settings.get('vm.enable_lxc')) !== '1') {
       return res.status(503).json({ ok: false, error: 'LXC rewards are currently unavailable. Contact the administrator.' });
     }
 
-    const plan = {
-      cpus: Math.max(1, Number(settings.get('discord.reward_cpus')) || 1),
-      memory: Math.max(128, Number(settings.get('discord.reward_memory')) || 1024),
-      disk_size: String(settings.get('discord.reward_disk') || '10G'),
-    };
-    const os = String(settings.get('discord.reward_os') || 'Ubuntu 24.04');
+    const purchaseReference = crypto.randomUUID();
+    const purchase = await boltService.spend(req.user.id, plan.costBolts, {
+      source: 'bolt_vps_purchase',
+      reference: purchaseReference,
+      details: { planId: plan.id, planName: plan.name },
+    });
+    if (!purchase.spent) return res.status(409).json({ ok: false, error: 'You do not have enough BOLTs for this VPS plan.', boltBalance: purchase.balance });
+
     const namePart = String(currentUser.username || 'member').toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').slice(0, 20) || 'member';
     const password = crypto.randomBytes(18).toString('base64url');
-    const vm = await vmService.create({
-      user: currentUser,
-      data: {
-        name: `reward-${namePart}-${crypto.randomBytes(3).toString('hex')}`,
-        os,
-        virtualization: 'lxc',
-        reward_type: 'discord',
-        username: 'root',
-        password,
-        ...plan,
-      },
-    });
+    let vm;
+    try {
+      vm = await vmService.create({
+        user: currentUser,
+        data: {
+          name: `reward-${namePart}-${crypto.randomBytes(3).toString('hex')}`,
+          os: plan.os,
+          virtualization: 'lxc',
+          reward_type: 'bolts',
+          reward_plan_id: plan.id,
+          reward_plan_name: plan.name,
+          username: 'root',
+          password,
+          cpus: plan.cpus,
+          memory: plan.memory,
+          disk_size: plan.disk,
+        },
+      });
+    } catch (error) {
+      await boltService.credit(req.user.id, plan.costBolts, {
+        source: 'bolt_vps_refund',
+        reference: `refund:${purchaseReference}`,
+        actorId: null,
+        details: { planId: plan.id, reason: error.message },
+      });
+      throw error;
+    }
     return res.json({
       ok: true,
       vm: { id: vm.id, name: vm.name },
       credentials: { username: 'root', password },
       redirect: `/servers/${vm.id}`,
+      boltBalance: purchase.balance,
     });
   } catch (error) {
     return res.status(500).json({ ok: false, error: error.message });
